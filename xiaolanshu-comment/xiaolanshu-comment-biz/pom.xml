@@ -135,6 +135,11 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-note-api</artifactId>
+        </dependency>
+
 
     </dependencies>
 

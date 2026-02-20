@@ -29,6 +29,7 @@ import com.wsz.xiaolanshu.comment.biz.mapper.NoteCountDOMapper;
 import com.wsz.xiaolanshu.comment.biz.retry.SendMqRetryHelper;
 import com.wsz.xiaolanshu.comment.biz.rpc.DistributedIdGeneratorRpcService;
 import com.wsz.xiaolanshu.comment.biz.rpc.KeyValueRpcService;
+import com.wsz.xiaolanshu.comment.biz.rpc.NoteRpcService;
 import com.wsz.xiaolanshu.comment.biz.rpc.UserRpcService;
 import com.wsz.xiaolanshu.comment.biz.service.CommentService;
 import com.wsz.xiaolanshu.kv.dto.req.FindCommentContentReqDTO;
@@ -99,6 +100,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Resource
+    private NoteRpcService noteRpcService;
 
 
     /**
@@ -691,8 +695,14 @@ public class CommentServiceImpl implements CommentService {
         }
 
         // 2. 校验是否有权限删除
-        Long currUserId = LoginUserContextHolder.getUserId();
-        if (!Objects.equals(currUserId, commentDO.getUserId())) {
+        Long currUserId = LoginUserContextHolder.getUserId(); // 当前登录用户
+        Long commentUserId = commentDO.getUserId();           // 评论的发布者
+
+        // RPC 获取这篇笔记的作者 ID
+        Long noteCreatorId = noteRpcService.getNoteCreatorId(commentDO.getNoteId());
+
+        // 鉴权逻辑：当前用户既不是该评论的发布者，也不是该笔记的作者，则抛出无权限异常
+        if (!Objects.equals(currUserId, commentUserId) && !Objects.equals(currUserId, noteCreatorId)) {
             throw new BizException(ResponseCodeEnum.COMMENT_CANT_OPERATE);
         }
 

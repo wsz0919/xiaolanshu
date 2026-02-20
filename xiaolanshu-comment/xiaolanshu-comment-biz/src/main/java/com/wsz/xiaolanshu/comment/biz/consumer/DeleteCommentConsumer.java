@@ -129,7 +129,6 @@ public class DeleteCommentConsumer implements RocketMQListener<String> {
         }
 
         // 3. 若是最早的发布的二级评论被删除，需要更新一级评论的 first_reply_comment_id
-
         // 查询一级评论
         CommentDO oneLevelCommentDO = commentDOMapper.selectByPrimaryKey(parentCommentId);
         Long firstReplyCommentId = oneLevelCommentDO.getFirstReplyCommentId();
@@ -139,10 +138,35 @@ public class DeleteCommentConsumer implements RocketMQListener<String> {
             // 查询数据库，重新获取一级评论最早回复的评论
             CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
 
-            // 最早回复的那条评论 ID。若查询结果为 null, 则最早回复的评论 ID 为 null
-            Long earliestCommentId = Objects.nonNull(earliestCommentDO) ? earliestCommentDO.getId() : null;
+            // 最早回复的那条评论 ID。若查询结果为 null, 则最早回复的评论 ID 设为 0
+            Long earliestCommentId = Objects.nonNull(earliestCommentDO) ? earliestCommentDO.getId() : 0L;
+
             // 更新其一级评论的 first_reply_comment_id
             commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentCommentId);
+
+            // ================== 【核心修复逻辑开始】 ==================
+
+            // 修复1：删除一级评论详情的 Redis 缓存，强制下次查询走数据库获取最新 first_reply_comment_id
+            redisTemplate.delete(RedisConstants.buildCommentDetailKey(parentCommentId));
+
+            // 修复2：广播 MQ，删除网关/本地的一级评论本地缓存
+            rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, parentCommentId, new SendCallback() {
+                @Override
+                public void onSuccess(SendResult sendResult) {
+                    log.info("==> 【删除二级评论】清理一级评论本地缓存 MQ 发送成功");
+                }
+                @Override
+                public void onException(Throwable throwable) {
+                    log.error("==> 【删除二级评论】清理一级评论本地缓存 MQ 发送异常", throwable);
+                }
+            });
+
+            // 修复3：如果删完后最早的评论 ID 变成 0 (说明该一级评论下没有任何二级评论了)
+            // 必须把 Redis 里的 “已有首条回复” 标记删掉，防止影响后续新发的评论！
+            if (earliestCommentId == 0L) {
+                redisTemplate.delete(RedisConstants.buildHaveFirstReplyCommentKey(parentCommentId));
+            }
+            // ================== 【核心修复逻辑结束】 ==================
         }
 
         // 4. 重新计算一级评论的热度值
