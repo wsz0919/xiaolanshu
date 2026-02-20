@@ -1,0 +1,20 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.wsz</groupId>
+        <artifactId>xiaolanshu</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <!-- 指定打包方式 -->
+    <packaging>pom</packaging>
+    <modules>
+        <module>xiaolanshu-search-biz</module>
+        <module>xiaolanshu-search-api</module>
+    </modules>
+
+    <artifactId>xiaolanshu-search</artifactId>
+    <name>${project.artifactId}</name>
+    <description>搜索服务</description>
+</project>

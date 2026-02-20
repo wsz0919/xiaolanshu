@@ -1,0 +1,29 @@
+package com.wsz.xiaolanshu.search.enums;
+
+import com.wsz.framework.common.exception.BaseExceptionInterface;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+/**
+ * Description
+ *
+ * @Author wangshaozhe
+ * @Date 2025-12-08 19:59
+ * @Company:
+ */
+@Getter
+@AllArgsConstructor
+public enum ResponseCodeEnum implements BaseExceptionInterface {
+
+    // ----------- 通用异常状态码 -----------
+    SYSTEM_ERROR("USER-10000", "出错啦，后台小哥正在努力修复中..."),
+    PARAM_NOT_VALID("USER-10001", "参数错误"),
+    // ----------- 业务异常状态码 -----------
+
+    ;
+
+    // 异常码
+    private final String errorCode;
+    // 错误信息
+    private final String errorMessage;
+}

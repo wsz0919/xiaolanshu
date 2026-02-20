@@ -1,0 +1,2 @@
+com.wsz.framework.biz.context.config.ContextAutoConfiguration
+com.wsz.framework.biz.context.config.FeignContextAutoConfiguration

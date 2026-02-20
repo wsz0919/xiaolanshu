@@ -1,0 +1,19 @@
+#=================================================================
+# 对象存储配置
+#=================================================================
+storage:
+  minio:
+    endpoint: http://182.92.185.232:19000
+    accessKey: iqBmEXjX2rcmJzRpQ2jx
+    secretKey: 0fRzZl6DGfk73tdSBtR9ebw4sLkkuJv6jZ4ehdeQ
+  aliyun-oss:
+    endpoint: oss-cn-qingdao.aliyuncs.com
+    accessKey: LTAI5tG1bFyE1etGMT922vhA
+    secretKey: Y0kkyRIvgs7KAUoq9tMG4zypUItt9N
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB      # 单个文件最大大小（根据需求调整，如 1GB）
+      max-request-size: 50MB   # 单次请求总大小
+
