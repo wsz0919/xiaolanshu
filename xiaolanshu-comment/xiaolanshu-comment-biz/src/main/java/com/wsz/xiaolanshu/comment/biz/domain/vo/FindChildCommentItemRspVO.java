@@ -67,4 +67,7 @@ public class FindChildCommentItemRspVO {
      * 回复的用户 ID
      */
     private Long replyUserId;
+
+    // 回复的目标评论ID
+    private Long replyCommentId;
 }

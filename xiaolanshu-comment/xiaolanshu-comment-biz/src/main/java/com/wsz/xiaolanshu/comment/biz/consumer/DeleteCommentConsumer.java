@@ -25,6 +25,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Description
@@ -113,60 +114,37 @@ public class DeleteCommentConsumer implements RocketMQListener<String> {
         List<Long> replyCommentIds = Lists.newArrayList();
         recurrentGetReplyCommentId(replyCommentIds, commentId);
 
-        // 被删除的行数
         int count = 0;
         if (CollUtil.isNotEmpty(replyCommentIds)) {
+            // 【注意】这里如果报错，请看第三步的 Mapper 修改！
             count = commentDOMapper.deleteByIds(replyCommentIds);
         }
 
         // 2. 更新一级评论的计数
         Long parentCommentId = commentDO.getParentId();
         String redisKey = RedisConstants.buildCountCommentKey(parentCommentId);
-
-        boolean hasKey = redisTemplate.hasKey(redisKey);
-        if (hasKey) {
+        if (redisTemplate.hasKey(redisKey)) {
             redisTemplate.opsForHash().increment(redisKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL, -(count + 1));
         }
 
-        // 3. 若是最早的发布的二级评论被删除，需要更新一级评论的 first_reply_comment_id
-        // 查询一级评论
-        CommentDO oneLevelCommentDO = commentDOMapper.selectByPrimaryKey(parentCommentId);
-        Long firstReplyCommentId = oneLevelCommentDO.getFirstReplyCommentId();
+        // ================== 【核心修复逻辑】 ==================
+        // 3. 不管别的，强制重新计算一级评论的最早回复，防脏数据！
+        CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
+        Long earliestCommentId = Objects.nonNull(earliestCommentDO) ? earliestCommentDO.getId() : 0L;
+        commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentCommentId);
 
-        // 若删除的是最早回复的二级评论
-        if (Objects.equals(firstReplyCommentId, commentId)) {
-            // 查询数据库，重新获取一级评论最早回复的评论
-            CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
+        // 4. 清理一级评论缓存
+        redisTemplate.delete(RedisConstants.buildCommentDetailKey(parentCommentId));
+        rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, parentCommentId, new SendCallback() {
+            @Override
+            public void onSuccess(SendResult sendResult) {}
+            @Override
+            public void onException(Throwable throwable) {}
+        });
 
-            // 最早回复的那条评论 ID。若查询结果为 null, 则最早回复的评论 ID 设为 0
-            Long earliestCommentId = Objects.nonNull(earliestCommentDO) ? earliestCommentDO.getId() : 0L;
-
-            // 更新其一级评论的 first_reply_comment_id
-            commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentCommentId);
-
-            // ================== 【核心修复逻辑开始】 ==================
-
-            // 修复1：删除一级评论详情的 Redis 缓存，强制下次查询走数据库获取最新 first_reply_comment_id
-            redisTemplate.delete(RedisConstants.buildCommentDetailKey(parentCommentId));
-
-            // 修复2：广播 MQ，删除网关/本地的一级评论本地缓存
-            rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, parentCommentId, new SendCallback() {
-                @Override
-                public void onSuccess(SendResult sendResult) {
-                    log.info("==> 【删除二级评论】清理一级评论本地缓存 MQ 发送成功");
-                }
-                @Override
-                public void onException(Throwable throwable) {
-                    log.error("==> 【删除二级评论】清理一级评论本地缓存 MQ 发送异常", throwable);
-                }
-            });
-
-            // 修复3：如果删完后最早的评论 ID 变成 0 (说明该一级评论下没有任何二级评论了)
-            // 必须把 Redis 里的 “已有首条回复” 标记删掉，防止影响后续新发的评论！
-            if (earliestCommentId == 0L) {
-                redisTemplate.delete(RedisConstants.buildHaveFirstReplyCommentKey(parentCommentId));
-            }
-            // ================== 【核心修复逻辑结束】 ==================
+        // 5. 如果删完后该一级评论下没有任何二级评论了，必须删掉 Redis 的标记！
+        if (earliestCommentId == 0L) {
+            redisTemplate.delete(RedisConstants.buildHaveFirstReplyCommentKey(parentCommentId));
         }
 
         // 4. 重新计算一级评论的热度值
@@ -197,14 +175,16 @@ public class DeleteCommentConsumer implements RocketMQListener<String> {
      * @param commentId
      */
     private void recurrentGetReplyCommentId(List<Long> commentIds, Long commentId) {
-        CommentDO replyCommentDO = commentDOMapper.selectByReplyCommentId(commentId);
+        // 【核心修复】必须要用返回 List 的查询，否则有多个子评论时必定抛出 TooManyResultsException 导致消费者崩溃
+        List<CommentDO> replyCommentDOs = commentDOMapper.selectListByReplyCommentId(commentId);
 
-        if (Objects.isNull(replyCommentDO)) return;
+        if (CollUtil.isEmpty(replyCommentDOs)) return;
 
-        commentIds.add(replyCommentDO.getId());
-        Long replyCommentId = replyCommentDO.getId();
-        // 递归调用
-        recurrentGetReplyCommentId(commentIds, replyCommentId);
+        for (CommentDO replyCommentDO : replyCommentDOs) {
+            commentIds.add(replyCommentDO.getId());
+            // 递归调用
+            recurrentGetReplyCommentId(commentIds, replyCommentDO.getId());
+        }
     }
 
 }

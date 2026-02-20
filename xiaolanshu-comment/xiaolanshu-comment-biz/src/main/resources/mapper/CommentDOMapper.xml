@@ -325,4 +325,15 @@
     where reply_comment_id = #{commentId}
   </select>
 
+  <update id="updateChildCommentTotalById">
+    update t_comment
+    set child_comment_total = child_comment_total + #{count}
+    where id = #{id} and child_comment_total + #{count} >= 0
+  </update>
+
+  <select id="selectListByReplyCommentId" resultMap="BaseResultMap" parameterType="long">
+    select <include refid="Base_Column_List" />
+    from t_comment
+    where reply_comment_id = #{replyCommentId}
+  </select>
 </mapper>

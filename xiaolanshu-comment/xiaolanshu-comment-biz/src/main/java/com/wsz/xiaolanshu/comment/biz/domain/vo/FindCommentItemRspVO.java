@@ -75,6 +75,8 @@ public class FindCommentItemRspVO {
      */
     private List<FindCommentItemRspVO> childComments;
 
+    private Long replyCommentId;
+
     /**
      * 热度值
      */

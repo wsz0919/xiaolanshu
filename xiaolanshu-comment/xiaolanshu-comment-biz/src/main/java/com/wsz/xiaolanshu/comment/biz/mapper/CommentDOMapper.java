@@ -139,4 +139,19 @@ public interface CommentDOMapper {
      * @return
      */
     CommentDO selectByReplyCommentId(Long commentId);
+
+    /**
+     * 更新评论的子评论总数
+     * @param id 评论ID
+     * @param count 变动数量 (正数为增，负数为减)
+     * @return
+     */
+    int updateChildCommentTotalById(@Param("id") Long id, @Param("count") int count);
+
+    /**
+     * 查询某条评论下的所有子回复
+     * @param replyCommentId 回复目标评论的ID
+     * @return
+     */
+    List<CommentDO> selectListByReplyCommentId(@Param("replyCommentId") Long replyCommentId);
 }

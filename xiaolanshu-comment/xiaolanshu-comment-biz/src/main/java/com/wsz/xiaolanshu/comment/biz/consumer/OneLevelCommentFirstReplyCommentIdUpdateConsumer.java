@@ -13,8 +13,11 @@ import com.wsz.xiaolanshu.comment.biz.enums.CommentLevelEnum;
 import com.wsz.xiaolanshu.comment.biz.mapper.CommentDOMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.client.producer.SendCallback;
+import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -49,10 +52,15 @@ public class OneLevelCommentFirstReplyCommentIdUpdateConsumer implements RocketM
     @Resource(name = "taskExecutor")
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
 
+    // ================== 【新增：注入 RocketMQTemplate 用于发送清理本地缓存消息】 ==================
+    @Resource
+    private RocketMQTemplate rocketMQTemplate;
+    // =========================================================================================
+
     private BufferTrigger<String> bufferTrigger = BufferTrigger.<String>batchBlocking()
             .bufferSize(50000) // 缓存队列的最大容量
             .batchSize(1000)   // 一批次最多聚合 1000 条
-            .linger(Duration.ofSeconds(1)) // 多久聚合一次（1s 一次）
+            .linger(Duration.ofSeconds(100)) // 多久聚合一次（1s 一次）
             .setConsumerEx(this::consumeMessage) // 设置消费者方法
             .build();
 
@@ -136,7 +144,24 @@ public class OneLevelCommentFirstReplyCommentIdUpdateConsumer implements RocketM
                     // 更新其一级评论的 first_reply_comment_id
                     commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, needUpdateCommentId);
 
-                    // 异步同步到 Redis
+                    // ================== 【核心修复逻辑开始】 ==================
+                    // 修复：必须删除一级评论详情的 Redis 缓存，强制下次查询走数据库获取最新 first_reply_comment_id
+                    redisTemplate.delete(RedisConstants.buildCommentDetailKey(needUpdateCommentId));
+
+                    // 修复：广播 MQ，通知各个节点删除该一级评论的本地 Caffeine 缓存
+                    rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, needUpdateCommentId, new org.apache.rocketmq.client.producer.SendCallback() {
+                        @Override
+                        public void onSuccess(org.apache.rocketmq.client.producer.SendResult sendResult) {
+                            log.info("==> 【首条回复更新】清理一级评论本地缓存 MQ 发送成功");
+                        }
+                        @Override
+                        public void onException(Throwable throwable) {
+                            log.error("==> 【首条回复更新】清理一级评论本地缓存 MQ 发送异常", throwable);
+                        }
+                    });
+                    // ================== 【核心修复逻辑结束】 ==================
+
+                    // 异步同步该一级评论“已有首条回复”的状态到 Redis (保持原样)
                     threadPoolTaskExecutor.submit(() -> sync2Redis(Lists.newArrayList(needUpdateCommentId)));
                 }
             });
@@ -164,5 +189,4 @@ public class OneLevelCommentFirstReplyCommentIdUpdateConsumer implements RocketM
             return null;
         });
     }
-
 }
