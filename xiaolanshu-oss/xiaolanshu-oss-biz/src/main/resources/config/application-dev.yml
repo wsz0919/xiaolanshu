@@ -6,10 +6,6 @@ storage:
     endpoint: http://182.92.185.232:19000
     accessKey: iqBmEXjX2rcmJzRpQ2jx
     secretKey: 0fRzZl6DGfk73tdSBtR9ebw4sLkkuJv6jZ4ehdeQ
-  aliyun-oss:
-    endpoint: oss-cn-qingdao.aliyuncs.com
-    accessKey: LTAI5tG1bFyE1etGMT922vhA
-    secretKey: Y0kkyRIvgs7KAUoq9tMG4zypUItt9N
 
 spring:
   servlet:
