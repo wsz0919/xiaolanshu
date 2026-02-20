@@ -34,10 +34,10 @@ import java.util.stream.Collectors;
  * @Date 2026-02-09 13:48
  * @Company:
  */
-@Component
-@RocketMQMessageListener(consumerGroup = "xiaolanshu_group_child_comment_total" + MQConstants.TOPIC_COUNT_NOTE_COMMENT, // Group 组
-        topic = MQConstants.TOPIC_COUNT_NOTE_COMMENT // 主题 Topic
-)
+//@Component
+//@RocketMQMessageListener(consumerGroup = "xiaolanshu_group_child_comment_total" + MQConstants.TOPIC_COUNT_NOTE_COMMENT, // Group 组
+//        topic = MQConstants.TOPIC_COUNT_NOTE_COMMENT // 主题 Topic
+//)
 @Slf4j
 public class CountNoteChildCommentConsumer implements RocketMQListener<String> {
 
