@@ -70,4 +70,9 @@ public class FindChildCommentItemRspVO {
 
     // 回复的目标评论ID
     private Long replyCommentId;
+
+    /**
+     * 当前登录用户是否已点赞该子评论
+     */
+    private Boolean isLiked;
 }

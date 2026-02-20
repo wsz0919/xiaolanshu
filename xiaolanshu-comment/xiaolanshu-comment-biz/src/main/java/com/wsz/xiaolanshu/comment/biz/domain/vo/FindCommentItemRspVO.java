@@ -82,4 +82,8 @@ public class FindCommentItemRspVO {
      */
     private Double heat;
 
+    /**
+     * 当前登录用户是否已点赞该评论
+     */
+    private Boolean isLiked;
 }

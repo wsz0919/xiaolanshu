@@ -114,9 +114,6 @@ public class CommentServiceImpl implements CommentService {
             .expireAfterWrite(1, TimeUnit.HOURS) // 设置缓存条目在写入后 1 小时过期
             .build();
 
-    /**
-     * 发布评论
-     */
     @Override
     public Response<?> publishComment(PublishCommentReqVO publishCommentReqVO) {
         String content = publishCommentReqVO.getContent();
@@ -143,9 +140,6 @@ public class CommentServiceImpl implements CommentService {
         return Response.success(commentId);
     }
 
-    /**
-     * 评论列表分页查询
-     */
     @Override
     public PageResponse<FindCommentItemRspVO> findCommentPageList(FindCommentPageListReqVO findCommentPageListReqVO) {
         Long noteId = findCommentPageListReqVO.getNoteId();
@@ -237,6 +231,11 @@ public class CommentServiceImpl implements CommentService {
         getCommentDataAndSync2Redis(oneLevelCommentDOS, noteId, commentRspVOS);
         syncCommentDetail2LocalCache(commentRspVOS);
 
+        // === 新增：动态判断并装载点赞状态 ===
+        if (CollUtil.isNotEmpty(commentRspVOS)) {
+            setCommentIsLikedData(commentRspVOS);
+        }
+
         return PageResponse.success(commentRspVOS, pageNo, count, pageSize);
     }
 
@@ -252,9 +251,6 @@ public class CommentServiceImpl implements CommentService {
         });
     }
 
-    /**
-     * 二级评论分页查询
-     */
     @Override
     public PageResponse<FindChildCommentItemRspVO> findChildCommentPageList(FindChildCommentPageListReqVO findChildCommentPageListReqVO) {
         Long parentCommentId = findChildCommentPageListReqVO.getParentCommentId();
@@ -322,12 +318,13 @@ public class CommentServiceImpl implements CommentService {
         List<CommentDO> childCommentDOS = commentDOMapper.selectChildPageList(parentCommentId, offset, pageSize);
         getChildCommentDataAndSync2Redis(childCommentDOS, childCommentRspVOS);
 
+        if (CollUtil.isNotEmpty(childCommentRspVOS)) {
+            setChildCommentIsLikedData(childCommentRspVOS);
+        }
+
         return PageResponse.success(childCommentRspVOS, pageNo, count, pageSize);
     }
 
-    /**
-     * 评论点赞
-     */
     @Override
     public Response<?> likeComment(LikeCommentReqVO likeCommentReqVO) {
         Long commentId = likeCommentReqVO.getCommentId();
@@ -378,9 +375,6 @@ public class CommentServiceImpl implements CommentService {
         return Response.success();
     }
 
-    /**
-     * 取消评论点赞
-     */
     @Override
     public Response<?> unlikeComment(UnLikeCommentReqVO unLikeCommentReqVO) {
         Long commentId = unLikeCommentReqVO.getCommentId();
@@ -424,21 +418,15 @@ public class CommentServiceImpl implements CommentService {
         return Response.success();
     }
 
-    /**
-     * 递归获取全部回复的子评论 ID (专门用于级联删除)
-     */
     private void recurrentGetReplyCommentId(List<Long> commentIds, Long commentId) {
         List<CommentDO> replyCommentDOs = commentDOMapper.selectListByReplyCommentId(commentId);
         if (CollUtil.isEmpty(replyCommentDOs)) return;
         for (CommentDO replyCommentDO : replyCommentDOs) {
             commentIds.add(replyCommentDO.getId());
-            recurrentGetReplyCommentId(commentIds, replyCommentDO.getId()); // 递归
+            recurrentGetReplyCommentId(commentIds, replyCommentDO.getId());
         }
     }
 
-    /**
-     * 删除本地缓存广播
-     */
     private void sendDeleteLocalCacheMq(Long id) {
         rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, id, new SendCallback() {
             @Override
@@ -450,7 +438,7 @@ public class CommentServiceImpl implements CommentService {
 
     /**
      * =========================================================================
-     * 删除评论 (全同步一致性改造，彻底消灭 MQ 异步造成的缓存错乱！)
+     * 删除评论 (全同步一致性改造，彻底避开 Redis 管道陷阱！)
      * =========================================================================
      */
     @Override
@@ -483,40 +471,31 @@ public class CommentServiceImpl implements CommentService {
         int deleteCount = 0;
 
         if (Objects.equals(level, CommentLevelEnum.TWO.getCode())) {
-            // 如果是二级评论，递归查找其下所有回复的子评论
             recurrentGetReplyCommentId(allNeedDeleteCommentIds, commentId);
             deleteCount = allNeedDeleteCommentIds.size();
         } else {
-            // 一级评论：总删除数 = 1 + 它包含的子评论数
             Long childTotal = commentDO.getChildCommentTotal();
             deleteCount = 1 + (childTotal != null ? childTotal.intValue() : 0);
         }
 
         final int finalDeleteCount = deleteCount;
 
-        // 4. 【核心处理：同步执行数据库删除与元数据扣减，杜绝异步导致的脏数据覆写！】
+        // 4. 【强一致性：同步执行数据库删除与元数据扣减】
         transactionTemplate.execute(status -> {
             try {
                 if (Objects.equals(level, CommentLevelEnum.ONE.getCode())) {
-                    // 一级评论：删除自身及所属子评论
                     commentDOMapper.deleteByPrimaryKey(commentId);
                     commentDOMapper.deleteByParentId(commentId);
                 } else {
-                    // 二级评论：批量删除自身及所有关联回复
                     commentDOMapper.deleteByIds(allNeedDeleteCommentIds);
-
-                    // 同步扣减其所属一级评论的子评论数
                     commentDOMapper.updateChildCommentTotalById(parentCommentId, -finalDeleteCount);
 
-                    // 同步重新计算并更新所属一级评论的 "最早首回复ID"
                     CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
                     Long earliestCommentId = Objects.nonNull(earliestCommentDO) ? earliestCommentDO.getId() : 0L;
                     commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentCommentId);
                 }
 
-                // 扣减全局笔记的总评论数
                 noteCountDOMapper.updateCommentTotalByNoteId(noteId, -finalDeleteCount);
-
                 return null;
             } catch (Exception ex) {
                 status.setRollbackOnly();
@@ -525,46 +504,49 @@ public class CommentServiceImpl implements CommentService {
             }
         });
 
-        // 删除 KV 存储里的评论内容 (放入事务外，防止阻塞长事务)
         try {
             keyValueRpcService.deleteCommentContent(commentDO.getNoteId(), commentDO.getCreateTime(), commentDO.getContentUuid());
         } catch (Exception e) {
             log.error("删除KV存储评论内容异常", e);
         }
 
+        // ================== 【核心修复：在管道外提前查询 key 是否存在！】 ==================
+        String noteCommentTotalKey = RedisConstants.buildNoteCommentTotalKey(noteId);
+        boolean hasNoteCommentTotalKey = Boolean.TRUE.equals(redisTemplate.hasKey(noteCommentTotalKey));
+
+        String countCommentKey = RedisConstants.buildCountCommentKey(parentCommentId);
+        boolean hasCountCommentKey = Objects.equals(level, CommentLevelEnum.TWO.getCode()) && Boolean.TRUE.equals(redisTemplate.hasKey(countCommentKey));
+        // ==============================================================================
+
         // 5. 同步强力清理所有相关的 Redis 缓存
         redisTemplate.executePipelined(new SessionCallback<>() {
             @Override
             public Object execute(RedisOperations operations) {
-                // (1) 更新笔记总评论数缓存
-                String noteCommentTotalKey = RedisConstants.buildNoteCommentTotalKey(noteId);
-                if (Boolean.TRUE.equals(operations.hasKey(noteCommentTotalKey))) {
+                // (1) 使用提前判断好的布尔值进行更新笔记总评论数缓存
+                if (hasNoteCommentTotalKey) {
                     operations.opsForHash().increment(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL, -finalDeleteCount);
                 }
 
                 if (Objects.equals(level, CommentLevelEnum.ONE.getCode())) {
-                    // (2.a) 一级评论缓存清理
                     String zsetKey = RedisConstants.buildCommentListKey(noteId);
-                    operations.opsForZSet().remove(zsetKey, commentId); // 从一级分页列表中踢出
-                    operations.delete(RedisConstants.buildCommentDetailKey(commentId)); // 删除详情缓存
-                    operations.delete(RedisConstants.buildChildCommentListKey(commentId)); // 删除附带的二级分页缓存
-                    operations.delete(RedisConstants.buildCountCommentKey(commentId)); // 删除点赞与子评论数缓存
-                    operations.delete(RedisConstants.buildHaveFirstReplyCommentKey(commentId)); // 删除首评标记
+                    operations.opsForZSet().remove(zsetKey, commentId);
+                    operations.delete(RedisConstants.buildCommentDetailKey(commentId));
+                    operations.delete(RedisConstants.buildChildCommentListKey(commentId));
+                    operations.delete(RedisConstants.buildCountCommentKey(commentId));
+                    operations.delete(RedisConstants.buildHaveFirstReplyCommentKey(commentId));
                 } else {
-                    // (2.b) 二级评论缓存清理
                     String zsetKey = RedisConstants.buildChildCommentListKey(parentCommentId);
                     for (Long idToRemove : allNeedDeleteCommentIds) {
-                        operations.opsForZSet().remove(zsetKey, idToRemove); // 从二级分页列表踢出自己及子回复
-                        operations.delete(RedisConstants.buildCommentDetailKey(idToRemove)); // 删除各级详情缓存
+                        operations.opsForZSet().remove(zsetKey, idToRemove);
+                        operations.delete(RedisConstants.buildCommentDetailKey(idToRemove));
                     }
 
-                    // 扣减一级评论的子评论数缓存
-                    String countCommentKey = RedisConstants.buildCountCommentKey(parentCommentId);
-                    if (Boolean.TRUE.equals(operations.hasKey(countCommentKey))) {
+                    // (2) 使用提前判断好的布尔值扣减一级评论的子评论数缓存
+                    if (hasCountCommentKey) {
                         operations.opsForHash().increment(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL, -finalDeleteCount);
                     }
 
-                    // 【极其关键】强制清理一级评论详情缓存，确保前端下次刷新时去 DB 里查最新的 first_reply_comment_id！
+                    // 强制清理一级评论详情缓存，确保去 DB 里查最新的数据
                     operations.delete(RedisConstants.buildCommentDetailKey(parentCommentId));
                 }
                 return null;
@@ -575,11 +557,9 @@ public class CommentServiceImpl implements CommentService {
         if (Objects.equals(level, CommentLevelEnum.TWO.getCode())) {
             CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
             if (Objects.isNull(earliestCommentDO)) {
-                // 如果没有子评论了，必须把首评标记删掉
                 redisTemplate.delete(RedisConstants.buildHaveFirstReplyCommentKey(parentCommentId));
             }
 
-            // 发送 MQ 重新计算父级评论的热度 (因为子评论变少了)
             Set<Long> commentIds = Sets.newHashSetWithExpectedSize(1);
             commentIds.add(parentCommentId);
             Message<String> heatMsg = MessageBuilder.withPayload(JsonUtils.toJsonString(commentIds)).build();
@@ -591,17 +571,15 @@ public class CommentServiceImpl implements CommentService {
             });
         }
 
-        // 7. 广播通知各个节点删除该数据的本地 Caffeine 缓存
+        // 7. 广播通知各个节点删除本地缓存
         if (Objects.equals(level, CommentLevelEnum.ONE.getCode())) {
             sendDeleteLocalCacheMq(commentId);
         } else {
             for (Long idToRemove : allNeedDeleteCommentIds) {
                 sendDeleteLocalCacheMq(idToRemove);
             }
-            sendDeleteLocalCacheMq(parentCommentId); // 务必连带刷新一级评论的本地缓存
+            sendDeleteLocalCacheMq(parentCommentId);
         }
-
-        // ！！！注意：我们在这里已经完成了所有删除和统计逻辑，不需要再发送旧版本的 TOPIC_DELETE_COMMENT MQ 消息了！！！
 
         return Response.success();
     }
@@ -993,6 +971,74 @@ public class CommentServiceImpl implements CommentService {
             oneLevelCommentRspVO.setAvatar(findUserByIdRspDTO.getAvatar());
             oneLevelCommentRspVO.setNickname(findUserByIdRspDTO.getNickName());
         }
+    }
+
+    /**
+     * 设置一级、及附带的首条二级评论是否被当前用户点赞
+     *
+     * @param commentRspVOS
+     */
+    private void setCommentIsLikedData(List<FindCommentItemRspVO> commentRspVOS) {
+        Long userId = LoginUserContextHolder.getUserId();
+        // 1. 如果未登录，直接将全部评论的 isLiked 置为 false，并且清洗掉可能被缓存污染的脏数据
+        if (Objects.isNull(userId)) {
+            for (FindCommentItemRspVO vo : commentRspVOS) {
+                vo.setIsLiked(false);
+                if (CollUtil.isNotEmpty(vo.getChildComments())) {
+                    vo.getChildComments().forEach(c -> c.setIsLiked(false));
+                }
+            }
+            return;
+        }
+
+        // 2. 提取当前页所有的评论 ID（包含一级和附带的二级评论）
+        List<Long> allCommentIds = Lists.newArrayList();
+        for (FindCommentItemRspVO vo : commentRspVOS) {
+            allCommentIds.add(vo.getCommentId());
+            if (CollUtil.isNotEmpty(vo.getChildComments())) {
+                vo.getChildComments().forEach(c -> allCommentIds.add(c.getCommentId()));
+            }
+        }
+
+        if (CollUtil.isEmpty(allCommentIds)) return;
+
+        // 3. 去数据库批量查询当前用户点赞过的评论 ID 集合
+        List<Long> likedCommentIds = commentLikeDOMapper.selectLikedCommentIds(userId, allCommentIds);
+
+        // 4. 遍历当前页，将匹配的设为 true，不匹配的设为 false
+        for (FindCommentItemRspVO vo : commentRspVOS) {
+            vo.setIsLiked(likedCommentIds.contains(vo.getCommentId()));
+            if (CollUtil.isNotEmpty(vo.getChildComments())) {
+                vo.getChildComments().forEach(c -> c.setIsLiked(likedCommentIds.contains(c.getCommentId())));
+            }
+        }
+    }
+
+    /**
+     * 设置二级子评论列表是否被当前用户点赞
+     *
+     * @param childCommentRspVOS
+     */
+    private void setChildCommentIsLikedData(List<FindChildCommentItemRspVO> childCommentRspVOS) {
+        Long userId = LoginUserContextHolder.getUserId();
+        // 1. 未登录，全部设为 false
+        if (Objects.isNull(userId)) {
+            childCommentRspVOS.forEach(vo -> vo.setIsLiked(false));
+            return;
+        }
+
+        // 2. 提取子评论 ID
+        List<Long> allCommentIds = childCommentRspVOS.stream()
+                .map(FindChildCommentItemRspVO::getCommentId)
+                .collect(Collectors.toList());
+
+        if (CollUtil.isEmpty(allCommentIds)) return;
+
+        // 3. 批量查询
+        List<Long> likedCommentIds = commentLikeDOMapper.selectLikedCommentIds(userId, allCommentIds);
+
+        // 4. 判断并赋值
+        childCommentRspVOS.forEach(vo -> vo.setIsLiked(likedCommentIds.contains(vo.getCommentId())));
     }
 
 }

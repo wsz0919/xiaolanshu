@@ -102,5 +102,12 @@
     </foreach>
     ON DUPLICATE KEY UPDATE id=id
   </insert>
-
+  <select id="selectLikedCommentIds" resultType="java.lang.Long">
+    select comment_id from t_comment_like
+    where user_id = #{userId}
+    and comment_id in
+    <foreach collection="commentIds" item="commentId" open="(" separator="," close=")">
+      #{commentId}
+    </foreach>
+  </select>
 </mapper>

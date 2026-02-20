@@ -49,4 +49,14 @@ public interface CommentLikeDOMapper {
      * @return
      */
     int batchInsert(@Param("likes") List<LikeUnlikeCommentMqDTO> likes);
+
+    /**
+     * 批量查询当前用户点赞过的评论 ID
+     *
+     * @param userId 当前用户 ID
+     * @param commentIds 当前列表的评论 ID 集合
+     * @return 点赞过的评论 ID 集合
+     */
+    List<Long> selectLikedCommentIds(@Param("userId") Long userId,
+                                     @Param("commentIds") List<Long> commentIds);
 }
