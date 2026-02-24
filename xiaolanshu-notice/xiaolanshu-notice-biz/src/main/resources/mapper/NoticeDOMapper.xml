@@ -24,14 +24,6 @@
     delete from t_notice
     where id = #{id,jdbcType=BIGINT}
   </delete>
-  <insert id="insert" parameterType="com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO">
-    insert into t_notice (id, receiver_id, sender_id, 
-      `type`, sub_type, target_id, 
-      create_time, update_time)
-    values (#{id,jdbcType=BIGINT}, #{receiverId,jdbcType=BIGINT}, #{senderId,jdbcType=BIGINT}, 
-      #{type,jdbcType=TINYINT}, #{subType,jdbcType=TINYINT}, #{targetId,jdbcType=BIGINT}, 
-      #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
-  </insert>
   <insert id="insertSelective" parameterType="com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO">
     insert into t_notice
     <trim prefix="(" suffix=")" suffixOverrides=",">
@@ -125,4 +117,20 @@
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=BIGINT}
   </update>
+  <insert id="insert" parameterType="com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO">
+    INSERT INTO t_notice (id, receiver_id, sender_id, type, sub_type, target_id)
+    VALUES (#{id}, #{receiverId}, #{senderId}, #{type}, #{subType}, #{targetId})
+  </insert>
+
+  <select id="selectCountByReceiverIdAndType" resultType="java.lang.Long">
+    SELECT COUNT(1) FROM t_notice
+    WHERE receiver_id = #{receiverId} AND type = #{type} AND is_deleted = 0
+  </select>
+
+  <select id="selectPageList" resultType="com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO">
+    SELECT * FROM t_notice
+    WHERE receiver_id = #{receiverId} AND type = #{type} AND is_deleted = 0
+    ORDER BY create_time DESC
+      LIMIT #{offset}, #{limit}
+  </select>
 </mapper>

@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.comment.biz.mapper;
 import com.wsz.xiaolanshu.comment.biz.domain.bo.CommentBO;
 import com.wsz.xiaolanshu.comment.biz.domain.bo.CommentHeatBO;
 import com.wsz.xiaolanshu.comment.biz.domain.dataobject.CommentDO;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -156,8 +157,16 @@ public interface CommentDOMapper {
     List<CommentDO> selectListByReplyCommentId(@Param("replyCommentId") Long replyCommentId);
 
     /**
-     *
-
+     * 根据评论 ID 获取用户 ID
+     * @param commentId
+     * @return
      */
     Long getUserIdByCommentId(@Param("commentId") Long commentId);
+
+    /**
+     * 根据评论 ID 获取笔记 ID
+     * @param commentId
+     * @return
+     */
+    FindCommentByIdRspDTO getNoteIdByCommentId(@Param("commentId") Long commentId);
 }

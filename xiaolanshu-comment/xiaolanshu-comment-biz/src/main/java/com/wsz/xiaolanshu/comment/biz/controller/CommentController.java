@@ -3,6 +3,8 @@ package com.wsz.xiaolanshu.comment.biz.controller;
 import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeCommentReqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.vo.*;
 import com.wsz.xiaolanshu.comment.biz.service.CommentService;
 import jakarta.annotation.Resource;
@@ -62,6 +64,12 @@ public class CommentController {
     @ApiOperationLog(description = "删除评论")
     public Response<?> deleteComment(@Validated @RequestBody DeleteCommentReqVO deleteCommentReqVO) {
         return commentService.deleteComment(deleteCommentReqVO);
+    }
+
+    @PostMapping("/getNoteIdByCommentId")
+    @ApiOperationLog(description = "根据评论ID获取笔记ID")
+    public Response<FindCommentByIdRspDTO> getNoteIdByCommentId(@Validated @RequestBody LikeCommentReqDTO vo) {
+        return commentService.getNoteIdByCommentId(vo);
     }
 }
 

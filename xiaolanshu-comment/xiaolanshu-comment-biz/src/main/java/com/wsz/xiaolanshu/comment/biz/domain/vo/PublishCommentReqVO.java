@@ -37,4 +37,9 @@ public class PublishCommentReqVO {
      */
     private Long replyCommentId;
 
+    /**
+     * 回复的哪个用户（被回复人的用户 ID）
+     */
+    private Long replyUserId;
+
 }

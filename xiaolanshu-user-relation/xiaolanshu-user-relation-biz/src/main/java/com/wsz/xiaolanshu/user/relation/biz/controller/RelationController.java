@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.user.relation.biz.controller;
 
 import com.wsz.framework.common.response.PageResponse;
+import com.wsz.xiaolanshu.user.relation.biz.domain.dto.FollowUserReqDTO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.vo.*;
 import com.wsz.xiaolanshu.user.relation.biz.service.RelationService;
 import jakarta.annotation.Resource;
@@ -52,7 +53,13 @@ public class RelationController {
 
     @PostMapping("/checkFollowStatus")
     @ApiOperationLog(description = "查询当前用户是否关注笔记作者")
-    public Response<?> findFansList(@Validated @RequestBody FollowUserReqVO followUserReqVO) {
+    public Response<?> isFollowOrUnfollow(@Validated @RequestBody FollowUserReqVO followUserReqVO) {
         return relationService.checkFollowStatus(followUserReqVO);
+    }
+
+    @PostMapping("/checkFollowRelation")
+    @ApiOperationLog(description = "查询当前用户与笔记作者是否关注")
+    public Response<?> isFollowOrUnfollow(@Validated @RequestBody FollowUserReqDTO followUserReqDTO) {
+        return relationService.checkFollowStatus(followUserReqDTO);
     }
 }

@@ -127,6 +127,7 @@
         <dependency>
             <groupId>com.wsz</groupId>
             <artifactId>xiaolanshu-user-api</artifactId>
+            <version>${revision}</version>
         </dependency>
 
         <!-- Caffeine 本地缓存 -->
@@ -138,8 +139,13 @@
         <dependency>
             <groupId>com.wsz</groupId>
             <artifactId>xiaolanshu-note-api</artifactId>
+            <version>${revision}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-comment-api</artifactId>
+        </dependency>
 
     </dependencies>
 

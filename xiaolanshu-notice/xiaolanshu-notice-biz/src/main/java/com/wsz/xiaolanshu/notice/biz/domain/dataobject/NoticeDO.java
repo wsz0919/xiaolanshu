@@ -14,18 +14,12 @@ import java.util.Date;
 @Builder
 public class NoticeDO {
     private Long id;
-
     private Long receiverId;
-
     private Long senderId;
-
     private Integer type;
-
     private Integer subType;
-
     private Long targetId;
-
     private LocalDateTime createTime;
-
     private LocalDateTime updateTime;
+    private Boolean isDeleted;
 }

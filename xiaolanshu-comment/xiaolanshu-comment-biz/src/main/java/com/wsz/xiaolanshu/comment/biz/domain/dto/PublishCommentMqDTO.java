@@ -52,4 +52,6 @@ public class PublishCommentMqDTO {
      */
     private Long commentId;
 
+    private Long replyUserId;
+
 }

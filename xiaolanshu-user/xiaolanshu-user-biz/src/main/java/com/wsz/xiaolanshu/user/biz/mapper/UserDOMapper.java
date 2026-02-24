@@ -39,4 +39,5 @@ public interface UserDOMapper {
      * @return
      */
     UserDO selectByXiaolanshuId(@Param("xiaolanshuId") String xiaolanshuId);
+
 }

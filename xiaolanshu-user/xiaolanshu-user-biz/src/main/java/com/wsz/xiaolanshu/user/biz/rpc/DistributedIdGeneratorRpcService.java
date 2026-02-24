@@ -28,6 +28,11 @@ public class DistributedIdGeneratorRpcService {
     private static final String BIZ_TAG_USER_ID = "leaf-segment-user-id";
 
     /**
+     * Leaf 号段模式：用户 ID 业务标识
+     */
+    private static final String BIZ_TAG_NOTICE_ID = "leaf-segment-notice-id";
+
+    /**
      * 调用分布式 ID 生成服务生成小哈书 ID
      *
      * @return
@@ -43,5 +48,14 @@ public class DistributedIdGeneratorRpcService {
      */
     public String getUserId() {
         return distributedIdGeneratorFeignApi.getSegmentId(BIZ_TAG_USER_ID);
+    }
+
+    /**
+     * 调用分布式 ID 生成服务用户 ID
+     *
+     * @return
+     */
+    public String getNoticeId() {
+        return distributedIdGeneratorFeignApi.getSegmentId(BIZ_TAG_NOTICE_ID);
     }
 }

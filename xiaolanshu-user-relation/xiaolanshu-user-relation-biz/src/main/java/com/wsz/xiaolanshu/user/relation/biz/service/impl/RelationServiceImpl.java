@@ -14,6 +14,7 @@ import com.wsz.xiaolanshu.user.relation.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.user.relation.biz.domain.dataobject.FansDO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.dataobject.FollowingDO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.dto.FollowUserMqDTO;
+import com.wsz.xiaolanshu.user.relation.biz.domain.dto.FollowUserReqDTO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.dto.UnfollowUserMqDTO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.vo.*;
 import com.wsz.xiaolanshu.user.relation.biz.mapper.FansDOMapper;
@@ -613,6 +614,16 @@ public class RelationServiceImpl implements RelationService {
         Long userId = LoginUserContextHolder.getUserId();
 
         long count = followingDOMapper.checkFollowStatus(userId, followUserReqVO.getFollowUserId());
+
+        if (count > 0) {
+            return Response.success(true);
+        }
+        return Response.success(false);
+    }
+
+    @Override
+    public Response<?> checkFollowStatus(FollowUserReqDTO followUserReqDTO) {
+        long count = followingDOMapper.checkFollowStatus(followUserReqDTO.getSenderId(), followUserReqDTO.getReceiverId());
 
         if (count > 0) {
             return Response.success(true);

@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.user.relation.biz.service;
 
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
+import com.wsz.xiaolanshu.user.relation.biz.domain.dto.FollowUserReqDTO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.vo.*;
 
 /**
@@ -47,4 +48,11 @@ public interface RelationService {
      * @return
      */
     Response<?> checkFollowStatus(FollowUserReqVO followUserReqVO);
+
+    /**
+     * 通知当前用户和关注自己用户的关系
+     * @param followUserReqDTO
+     * @return
+     */
+    Response<?> checkFollowStatus(FollowUserReqDTO followUserReqDTO);
 }

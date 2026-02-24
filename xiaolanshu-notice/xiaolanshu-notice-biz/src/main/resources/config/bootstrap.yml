@@ -12,3 +12,12 @@ spring:
         server-addr: 192.168.200.128:8848 # 指定 Nacos 配置中心的服务器地址
         username: nacos
         password: nacos
+      config:
+        server-addr: 192.168.200.128:8848 # 指定 Nacos 配置中心的服务器地址
+        prefix: ${spring.application.name} # 配置 Data Id 前缀，这里使用应用名称作为前缀
+        group: DEFAULT_GROUP # 所属组
+        namespace: 48bfc279-941c-47b3-b1a2-88b771b79237 # 命名空间
+        file-extension: yaml # 配置文件格式
+        refresh-enabled: true # 是否开启动态刷新
+        username: nacos
+        password: nacos

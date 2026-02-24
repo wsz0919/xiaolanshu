@@ -404,6 +404,35 @@
                 <version>${mapstruct.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>com.wsz</groupId>
+                <artifactId>xiaolanshu-user-relation-biz</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wsz</groupId>
+                <artifactId>xiaolanshu-count-biz</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wsz</groupId>
+                <artifactId>xiaolanshu-comment-biz</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wsz</groupId>
+                <artifactId>xiaolanshu-comment-api</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wsz</groupId>
+                <artifactId>xiaolanshu-user-relation-api</artifactId>
+                <version>${revision}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

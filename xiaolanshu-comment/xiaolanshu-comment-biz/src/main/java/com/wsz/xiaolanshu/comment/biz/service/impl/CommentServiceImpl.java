@@ -19,6 +19,8 @@ import com.wsz.xiaolanshu.comment.biz.constant.MQConstants;
 import com.wsz.xiaolanshu.comment.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.comment.biz.domain.dataobject.CommentDO;
 import com.wsz.xiaolanshu.comment.biz.domain.dataobject.CommentLikeDO;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeCommentReqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeUnlikeCommentMqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.PublishCommentMqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.vo.*;
@@ -130,6 +132,7 @@ public class CommentServiceImpl implements CommentService {
                 .noteId(publishCommentReqVO.getNoteId())
                 .content(content)
                 .imageUrl(imageUrl)
+                .replyUserId(publishCommentReqVO.getReplyUserId())
                 .replyCommentId(publishCommentReqVO.getReplyCommentId())
                 .createTime(LocalDateTime.now())
                 .creatorId(creatorId)
@@ -1052,4 +1055,9 @@ public class CommentServiceImpl implements CommentService {
         childCommentRspVOS.forEach(vo -> vo.setIsLiked(likedCommentIds.contains(vo.getCommentId())));
     }
 
+    @Override
+    public Response<FindCommentByIdRspDTO> getNoteIdByCommentId(LikeCommentReqDTO vo) {
+        FindCommentByIdRspDTO dto = commentDOMapper.getNoteIdByCommentId(vo.getCommentId());
+        return Response.success(dto);
+    }
 }

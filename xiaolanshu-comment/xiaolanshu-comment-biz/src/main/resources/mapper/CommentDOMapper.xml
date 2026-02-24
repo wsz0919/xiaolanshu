@@ -341,6 +341,12 @@
     from t_comment
     where id = #{commentId}
   </select>
+  <select id="getNoteIdByCommentId"
+          resultType="com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO">
+    select id, note_id, user_id, content_uuid, reply_comment_id, image_url, level, create_time
+    from t_comment
+    where id = #{commentId}
+  </select>
 
 
 </mapper>

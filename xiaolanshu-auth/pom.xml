@@ -116,10 +116,6 @@
             <artifactId>xiaolanshu-user-api</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>com.wsz</groupId>
-            <artifactId>xiaolanshu-user-api</artifactId>
-        </dependency>
 
     </dependencies>
 

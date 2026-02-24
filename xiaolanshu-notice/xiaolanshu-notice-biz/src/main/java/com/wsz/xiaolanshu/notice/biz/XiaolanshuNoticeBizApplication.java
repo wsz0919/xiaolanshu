@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.notice.biz;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
  * Description
@@ -13,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 @MapperScan("com.wsz.xiaolanshu.notice.biz.mapper")
+@EnableFeignClients("com.wsz.xiaolanshu")
 public class XiaolanshuNoticeBizApplication {
     public static void main(String[] args) {
         SpringApplication.run(XiaolanshuNoticeBizApplication.class, args);
