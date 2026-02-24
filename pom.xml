@@ -34,6 +34,7 @@
         <module>xiaolanshu-data-align</module>
         <module>xiaolanshu-search</module>
         <module>xiaolanshu-comment</module>
+        <module>xiaolanshu-notice</module>
     </modules>
 
     <properties>
