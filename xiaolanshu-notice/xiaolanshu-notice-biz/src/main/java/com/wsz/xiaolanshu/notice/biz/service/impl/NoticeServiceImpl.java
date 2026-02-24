@@ -7,6 +7,11 @@ import com.wsz.xiaolanshu.comment.api.CommentFeignApi;
 import com.wsz.xiaolanshu.comment.dto.FindCommentByIdRspDTO;
 import com.wsz.xiaolanshu.comment.dto.LikeCommentReqDTO;
 import com.wsz.xiaolanshu.kv.api.KeyValueFeignApi;
+import com.wsz.xiaolanshu.kv.dto.req.FindCommentContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.FindCommentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.FindNoteContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.resp.FindCommentContentRspDTO;
+import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
 import com.wsz.xiaolanshu.note.api.NoteFeignApi;
 import com.wsz.xiaolanshu.note.dto.req.FindNoteDetailReqDTO;
 import com.wsz.xiaolanshu.note.dto.resp.FindNoteDetailRspDTO;
@@ -106,6 +111,9 @@ public class NoticeServiceImpl implements NoticeService {
 
         // 5. 核心：组装为前端富文本视图
         List<NoticeItemRspVO> rspList = doList.stream().map(notice -> {
+            LikeCommentReqDTO likeCommentReqDTO = new LikeCommentReqDTO();
+            FindNoteDetailReqDTO noteReq = new FindNoteDetailReqDTO();
+
             NoticeItemRspVO item = new NoticeItemRspVO();
             item.setId(String.valueOf(notice.getId()));
             item.setTime(DateUtils.formatRelativeTime(notice.getCreateTime()));
@@ -126,7 +134,6 @@ public class NoticeServiceImpl implements NoticeService {
                 Long noteId = notice.getTargetId();
 
                 if (notice.getSubType() == 13) {
-                    LikeCommentReqDTO likeCommentReqDTO = new LikeCommentReqDTO();
                     likeCommentReqDTO.setCommentId(notice.getTargetId());
                     FindCommentByIdRspDTO comment = commentFeignApi.getNoteIdByCommentId(likeCommentReqDTO).getData();
                     if (comment != null) {
@@ -135,7 +142,6 @@ public class NoticeServiceImpl implements NoticeService {
                 }
 
                 if (noteId != null && noteId > 0) {
-                    FindNoteDetailReqDTO noteReq = new FindNoteDetailReqDTO();
                     noteReq.setId(noteId);
                     FindNoteDetailRspDTO note = noteFeignApi.findNoteDetail(noteReq).getData();
                     String cover = String.valueOf(note.getImgUris());
@@ -155,33 +161,40 @@ public class NoticeServiceImpl implements NoticeService {
             }
             else if (type == 3) {
                 item.setType("reply");
-                // CommentDTO comment = commentFeignApi.findById(notice.getTargetId()).getData();
-                // if (comment != null) {
-                //      FindCommentContentReqDTO kvReq = new FindCommentContentReqDTO();
-                //      kvReq.setUuid(comment.getContentUuid());
-                //      FindCommentContentRspDTO contentRsp = keyValueFeignApi.findCommentContent(kvReq).getData();
-                //      if (contentRsp != null) item.setContent(contentRsp.getContent());
-                //
-                //      FindNoteDetailReqDTO noteReq = new FindNoteDetailReqDTO();
-                //      noteReq.setId(comment.getNoteId());
-                //      FindNoteDetailRspDTO note = noteFeignApi.findById(noteReq).getData();
-                //      if (note != null) {
-                //          if(StringUtils.isNotBlank(note.getImgUris())) item.setCover(note.getImgUris().split(",")[0]);
-                //          userVO.setIsAuthor(notice.getSenderId().equals(note.getCreatorId()));
-                //
-                //          if (notice.getSubType() == 31) {
-                //              item.setQuoteText(note.getTitle());
-                //          } else if (notice.getSubType() == 32 && comment.getReplyCommentId() != null) {
-                //              CommentDTO parentComment = commentFeignApi.findById(comment.getReplyCommentId()).getData();
-                //              if(parentComment != null) {
-                //                  FindCommentContentReqDTO parentKvReq = new FindCommentContentReqDTO();
-                //                  parentKvReq.setUuid(parentComment.getContentUuid());
-                //                  FindCommentContentRspDTO parentContent = keyValueFeignApi.findCommentContent(parentKvReq).getData();
-                //                  if (parentContent != null) item.setQuoteText(parentContent.getContent());
-                //              }
-                //          }
-                //      }
-                // }
+                likeCommentReqDTO.setCommentId(notice.getTargetId());
+                FindCommentByIdRspDTO comment = commentFeignApi.getNoteIdByCommentId(likeCommentReqDTO).getData();
+                if (comment != null) {
+                    FindCommentReqDTO kvReq = new FindCommentReqDTO();
+                    kvReq.setContentUuid(comment.getContentUuid());
+                    kvReq.setNoteId(comment.getNoteId());
+                    kvReq.setYearMonth(DateUtils.parse2MonthStr(notice.getCreateTime()));
+                    FindCommentContentRspDTO contentRsp = keyValueFeignApi.getCommentByCommentId(kvReq).getData();
+                     if (contentRsp != null) item.setContent(contentRsp.getContent());
+
+                     noteReq.setId(comment.getNoteId());
+                     FindNoteDetailRspDTO note = noteFeignApi.findNoteDetail(noteReq).getData();
+                     if (note != null) {
+                         if(StringUtils.isNotBlank(String.valueOf(note.getImgUris()))) {
+                             item.setCover(String.valueOf(note.getImgUris()).split(",")[0]);
+                         }
+                         userVO.setIsAuthor(notice.getSenderId().equals(note.getCreatorId()));
+
+                         if (notice.getSubType() == 31) {
+                             item.setQuoteText(note.getTitle());
+                         } else if (notice.getSubType() == 32 && comment.getReplyCommentId() != null) {
+                             likeCommentReqDTO.setCommentId(comment.getReplyCommentId());
+                             FindCommentByIdRspDTO parentComment = commentFeignApi.getNoteIdByCommentId(likeCommentReqDTO).getData();
+                             if(parentComment != null) {
+                                 FindCommentReqDTO parentKvReq = new FindCommentReqDTO();
+                                 parentKvReq.setContentUuid(parentComment.getContentUuid());
+                                 parentKvReq.setNoteId(comment.getNoteId());
+                                 parentKvReq.setYearMonth(DateUtils.parse2MonthStr(notice.getCreateTime()));
+                                 FindCommentContentRspDTO parentContent = keyValueFeignApi.getCommentByCommentId(parentKvReq).getData();
+                                 if (parentContent != null) item.setQuoteText(parentContent.getContent());
+                             }
+                         }
+                     }
+                }
             }
             return item;
         }).collect(Collectors.toList());
@@ -204,6 +217,11 @@ public class NoticeServiceImpl implements NoticeService {
     }
 
     private String getActionText(Integer subType) {
+
+        if (subType == null) {
+            return "与你产生了互动";
+        }
+
         return switch (subType) {
             case 11 -> "赞了你的笔记";
             case 12 -> "收藏了你的笔记";

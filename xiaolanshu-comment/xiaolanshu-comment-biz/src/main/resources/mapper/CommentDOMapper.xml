@@ -343,7 +343,15 @@
   </select>
   <select id="getNoteIdByCommentId"
           resultType="com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO">
-    select id, note_id, user_id, content_uuid, reply_comment_id, image_url, level, create_time
+    select
+      id,
+      note_id as noteId,
+      user_id as userId,
+      content_uuid as contentUuid,
+      reply_comment_id as replyCommentId,
+      image_url as imageUrl,
+      level,
+      create_time as createTime
     from t_comment
     where id = #{commentId}
   </select>

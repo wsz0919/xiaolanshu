@@ -6,6 +6,8 @@ import com.wsz.xiaolanshu.biz.service.CommentContentService;
 import com.wsz.xiaolanshu.kv.dto.req.BatchAddCommentContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.BatchFindCommentContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.DeleteCommentContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.FindCommentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.resp.FindCommentContentRspDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -45,5 +47,11 @@ public class CommentContentController {
     @ApiOperationLog(description = "删除评论内容")
     public Response<?> deleteCommentContent(@Validated @RequestBody DeleteCommentContentReqDTO deleteCommentContentReqDTO) {
         return commentContentService.deleteCommentContent(deleteCommentContentReqDTO);
+    }
+
+    @PostMapping(value = "/comment/content/getContent")
+    @ApiOperationLog(description = "查询评论内容")
+    public Response<FindCommentContentRspDTO> getCommentByCommentId(@Validated @RequestBody FindCommentReqDTO req) {
+        return commentContentService.findCommentContent(req);
     }
 }

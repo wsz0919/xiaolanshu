@@ -43,6 +43,11 @@ public class DateUtils {
      * @return
      */
     public static String formatRelativeTime(LocalDateTime dateTime) {
+
+        if (dateTime == null) {
+            return "未知时间";  // 或者返回空字符串，根据业务需要
+        }
+
         // 当前时间
         LocalDateTime now = LocalDateTime.now();
 
@@ -95,5 +100,17 @@ public class DateUtils {
             return null;
 
         return time.format(DateConstants.DATE_FORMAT_Y_M_D);
+    }
+
+    /**
+     * LocalDateTime 转 Date 字符串
+     * @param time
+     * @return
+     */
+    public static String parse2MonthStr(LocalDateTime time) {
+        if (Objects.isNull(time))
+            return null;
+
+        return time.format(DateConstants.DATE_FORMAT_Y_M);
     }
 }

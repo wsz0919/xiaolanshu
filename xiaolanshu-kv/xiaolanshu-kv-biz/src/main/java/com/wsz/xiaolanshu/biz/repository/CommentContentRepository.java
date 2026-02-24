@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.biz.repository;
 import com.wsz.xiaolanshu.biz.domain.dataobject.CommentContentDO;
 import com.wsz.xiaolanshu.biz.domain.dataobject.CommentContentPrimaryKey;
 import org.springframework.data.cassandra.repository.CassandraRepository;
+import org.springframework.data.cassandra.repository.Query;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,4 +36,9 @@ public interface CommentContentRepository extends CassandraRepository<CommentCon
      */
     void deleteByPrimaryKeyNoteIdAndPrimaryKeyYearMonthAndPrimaryKeyContentId(Long noteId, String yearMonth, UUID contentId);
 
+    /**
+     * 根据完整的主键获取评论内容
+     */
+    @Query("SELECT * FROM comment_content WHERE note_id = ?0 AND year_month = ?1 AND content_id = ?2")
+    CommentContentDO findContentByPrimaryKey(Long noteId, String yearMonth, UUID contentId);
 }

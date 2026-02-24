@@ -133,4 +133,22 @@ public class CommentContentServiceImpl implements CommentContentService {
 
         return Response.success();
     }
+
+    @Override
+    public Response<FindCommentContentRspDTO> findCommentContent(FindCommentReqDTO req) {
+        UUID uuid = UUID.fromString(req.getContentUuid());
+
+        // 使用上面提到的写法二或写法一
+        CommentContentDO contentDO = commentContentRepository.findContentByPrimaryKey(
+                req.getNoteId(), req.getYearMonth(), uuid
+        );
+
+        if (contentDO == null) {
+            return Response.success(null);
+        }
+
+        FindCommentContentRspDTO rsp = new FindCommentContentRspDTO();
+        rsp.setContent(contentDO.getContent());
+        return Response.success(rsp);
+    }
 }

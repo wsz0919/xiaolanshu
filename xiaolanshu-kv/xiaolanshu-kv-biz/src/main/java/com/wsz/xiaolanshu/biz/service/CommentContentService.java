@@ -1,9 +1,8 @@
 package com.wsz.xiaolanshu.biz.service;
 
 import com.wsz.framework.common.response.Response;
-import com.wsz.xiaolanshu.kv.dto.req.BatchAddCommentContentReqDTO;
-import com.wsz.xiaolanshu.kv.dto.req.BatchFindCommentContentReqDTO;
-import com.wsz.xiaolanshu.kv.dto.req.DeleteCommentContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.*;
+import com.wsz.xiaolanshu.kv.dto.resp.FindCommentContentRspDTO;
 
 /**
  * Description
@@ -35,4 +34,10 @@ public interface CommentContentService {
      */
     Response<?> deleteCommentContent(DeleteCommentContentReqDTO deleteCommentContentReqDTO);
 
+    /**
+     * 根据评论 ID 获取评论内容
+     * @param req
+     * @return
+     */
+    Response<FindCommentContentRspDTO> findCommentContent(FindCommentReqDTO req);
 }
