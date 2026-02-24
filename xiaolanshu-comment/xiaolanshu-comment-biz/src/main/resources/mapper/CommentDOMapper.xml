@@ -336,4 +336,11 @@
     from t_comment
     where reply_comment_id = #{replyCommentId}
   </select>
+  <select id="getUserIdByCommentId" resultType="java.lang.Long">
+    select user_id
+    from t_comment
+    where id = #{commentId}
+  </select>
+
+
 </mapper>

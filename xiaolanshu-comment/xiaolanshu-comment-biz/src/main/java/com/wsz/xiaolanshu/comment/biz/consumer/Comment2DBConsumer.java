@@ -175,7 +175,7 @@ public class Comment2DBConsumer {
 
                         // ================== 【核心修复：同步更新该笔记的评论总数 DB】 ==================
                         for (Map.Entry<Long, Long> entry : noteIdCountMap.entrySet()) {
-                            noteCountDOMapper.updateCommentTotalByNoteId(entry.getKey(), entry.getValue().intValue());
+                            noteCountDOMapper.insertOrUpdateCommentTotalByNoteId(entry.getKey(), entry.getValue().intValue());
                         }
 
                         return count;

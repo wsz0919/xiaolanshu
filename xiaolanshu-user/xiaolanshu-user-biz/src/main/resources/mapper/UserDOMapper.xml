@@ -207,4 +207,11 @@
       #{id}
     </foreach>
   </select>
+
+  <select id="selectByXiaolanshuId" resultMap="BaseResultMap">
+    select id, xiaolanshu_id
+    from t_user
+    where xiaolanshu_id = #{xiaolanshuId}
+      limit 1
+  </select>
 </mapper>

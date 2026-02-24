@@ -127,7 +127,33 @@ public class CanalSchedule implements Runnable {
         switch (table) {
             case "t_note" -> handleNoteEvent(columnMap, eventType); // 笔记表
             case "t_user" -> handleUserEvent(columnMap, eventType); // 用户表
+            // ================= 新增：处理计数表更新同步 =================
+            case "t_note_count" -> handleNoteCountEvent(columnMap, eventType); // 笔记计数表
+            case "t_user_count" -> handleUserCountEvent(columnMap, eventType); // 用户计数表
+            // =========================================================
             default -> log.warn("Table: {} not support", table);
+        }
+    }
+
+    /**
+     * 处理笔记计数表事件
+     */
+    private void handleNoteCountEvent(Map<String, Object> columnMap, CanalEntry.EventType eventType) throws Exception {
+        Long noteId = Long.parseLong(columnMap.get("note_id").toString());
+        // 只要计数值发生变动，重新同步笔记文档，刷新点赞/收藏/评论数
+        if (eventType == CanalEntry.EventType.INSERT || eventType == CanalEntry.EventType.UPDATE) {
+            syncNoteIndex(noteId);
+        }
+    }
+
+    /**
+     * 处理用户计数表事件
+     */
+    private void handleUserCountEvent(Map<String, Object> columnMap, CanalEntry.EventType eventType) throws Exception {
+        Long userId = Long.parseLong(columnMap.get("user_id").toString());
+        // 只要计数值发生变动，重新同步用户文档（刷新粉丝数/笔记数），并刷新其笔记文档中的冗余信息
+        if (eventType == CanalEntry.EventType.INSERT || eventType == CanalEntry.EventType.UPDATE) {
+            syncNotesIndexAndUserIndex(userId);
         }
     }
 
@@ -245,8 +271,11 @@ public class CanalSchedule implements Runnable {
             bulkRequest.add(indexRequest);
         }
 
-        // 执行批量请求
-        restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+        // 修复：防止某些用户没有笔记时 bulkRequest 为空导致报错
+        if (bulkRequest.numberOfActions() > 0) {
+            // 执行批量请求
+            restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+        }
     }
 
     /**

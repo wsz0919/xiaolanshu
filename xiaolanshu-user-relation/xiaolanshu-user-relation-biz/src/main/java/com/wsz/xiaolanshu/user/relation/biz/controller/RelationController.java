@@ -49,4 +49,10 @@ public class RelationController {
     public PageResponse<FindFansUserRspVO> findFansList(@Validated @RequestBody FindFansListReqVO findFansListReqVO) {
         return relationService.findFansList(findFansListReqVO);
     }
+
+    @PostMapping("/checkFollowStatus")
+    @ApiOperationLog(description = "查询当前用户是否关注笔记作者")
+    public Response<?> findFansList(@Validated @RequestBody FollowUserReqVO followUserReqVO) {
+        return relationService.checkFollowStatus(followUserReqVO);
+    }
 }

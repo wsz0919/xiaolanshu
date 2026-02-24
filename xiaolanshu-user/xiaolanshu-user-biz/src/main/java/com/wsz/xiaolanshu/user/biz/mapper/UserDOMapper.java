@@ -32,4 +32,11 @@ public interface UserDOMapper {
      * @return
      */
     List<UserDO> selectByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 根据小蓝书号查询用户
+     * @param xiaolanshuId
+     * @return
+     */
+    UserDO selectByXiaolanshuId(@Param("xiaolanshuId") String xiaolanshuId);
 }

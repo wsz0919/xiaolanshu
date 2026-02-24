@@ -607,4 +607,16 @@ public class RelationServiceImpl implements RelationService {
         luaArgs[argsLength - 1] = expireSeconds; // 最后一个参数是 ZSet 的过期时间
         return luaArgs;
     }
+
+    @Override
+    public Response<?> checkFollowStatus(FollowUserReqVO followUserReqVO) {
+        Long userId = LoginUserContextHolder.getUserId();
+
+        long count = followingDOMapper.checkFollowStatus(userId, followUserReqVO.getFollowUserId());
+
+        if (count > 0) {
+            return Response.success(true);
+        }
+        return Response.success(false);
+    }
 }

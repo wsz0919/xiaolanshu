@@ -49,4 +49,6 @@ public interface FollowingDOMapper {
      */
     List<FollowingDO> selectAllByUserId(Long userId);
 
+    long checkFollowStatus(@Param("userId") Long userId, @Param("followUserId") Long followUserId);
+
 }

@@ -806,6 +806,11 @@ public class NoteServiceImpl implements NoteService {
         // 当前登录用户ID
         Long userId = LoginUserContextHolder.getUserId();
 
+        // ================== 新增：校验不能点赞自己的笔记 ==================
+        if (Objects.equals(creatorId, userId)) {
+            throw new BizException(ResponseCodeEnum.CANT_LIKE_OWN_NOTE);
+        }
+
         // Roaring Bitmap Key
         String rbitmapUserNoteLikeListKey = RedisConstants.buildRBitmapUserNoteLikeListKey(userId);
 
@@ -1081,6 +1086,10 @@ public class NoteServiceImpl implements NoteService {
         // 2. 判断目标笔记，是否已经收藏过
         // 当前登录用户ID
         Long userId = LoginUserContextHolder.getUserId();
+
+        if (Objects.equals(creatorId, userId)) {
+            throw new BizException(ResponseCodeEnum.CANT_COLLECT_OWN_NOTE);
+        }
 
         // Roaring Bitmap Key
         String rbitmapUserNoteCollectListKey = RedisConstants.buildRBitmapUserNoteCollectListKey(userId);

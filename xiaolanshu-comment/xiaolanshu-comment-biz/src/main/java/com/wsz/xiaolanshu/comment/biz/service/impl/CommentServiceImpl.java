@@ -195,8 +195,13 @@ public class CommentServiceImpl implements CommentService {
                     }
                 }
 
+                // 本地缓存全部命中，提前返回
                 if (CollUtil.size(localCacheExpiredCommentIds) == 0) {
-                    if (CollUtil.isNotEmpty(commentRspVOS)) setCommentCountData(commentRspVOS, localCacheExpiredCommentIds);
+                    if (CollUtil.isNotEmpty(commentRspVOS)) {
+                        setCommentCountData(commentRspVOS, localCacheExpiredCommentIds);
+                        // ====== 修复点1：补上动态点赞状态 ======
+                        setCommentIsLikedData(commentRspVOS);
+                    }
                     return PageResponse.success(commentRspVOS, pageNo, count, pageSize);
                 }
 
@@ -224,14 +229,19 @@ public class CommentServiceImpl implements CommentService {
             commentRspVOS = commentRspVOS.stream().sorted(Comparator.comparing(FindCommentItemRspVO::getHeat).reversed()).collect(Collectors.toList());
             syncCommentDetail2LocalCache(commentRspVOS);
 
+            // ====== 修复点2：Redis缓存命中提前返回前，补上动态点赞状态 ======
+            if (CollUtil.isNotEmpty(commentRspVOS)) {
+                setCommentIsLikedData(commentRspVOS);
+            }
+
             return PageResponse.success(commentRspVOS, pageNo, count, pageSize);
         }
 
+        // 数据库兜底查询返回
         List<CommentDO> oneLevelCommentDOS = commentDOMapper.selectPageList(noteId, offset, pageSize);
         getCommentDataAndSync2Redis(oneLevelCommentDOS, noteId, commentRspVOS);
         syncCommentDetail2LocalCache(commentRspVOS);
 
-        // === 新增：动态判断并装载点赞状态 ===
         if (CollUtil.isNotEmpty(commentRspVOS)) {
             setCommentIsLikedData(commentRspVOS);
         }
@@ -311,10 +321,17 @@ public class CommentServiceImpl implements CommentService {
                 }
 
                 childCommentRspVOS = childCommentRspVOS.stream().sorted(Comparator.comparing(FindChildCommentItemRspVO::getCommentId)).collect(Collectors.toList());
+
+                // ====== 修复点3：二级评论缓存命中提前返回前，补上动态点赞状态 ======
+                if (CollUtil.isNotEmpty(childCommentRspVOS)) {
+                    setChildCommentIsLikedData(childCommentRspVOS);
+                }
+
                 return PageResponse.success(childCommentRspVOS, pageNo, count, pageSize);
             }
         }
 
+        // 数据库兜底查询返回
         List<CommentDO> childCommentDOS = commentDOMapper.selectChildPageList(parentCommentId, offset, pageSize);
         getChildCommentDataAndSync2Redis(childCommentDOS, childCommentRspVOS);
 
@@ -330,6 +347,13 @@ public class CommentServiceImpl implements CommentService {
         Long commentId = likeCommentReqVO.getCommentId();
         checkCommentIsExist(commentId);
         Long userId = LoginUserContextHolder.getUserId();
+
+        Long creatorId = commentDOMapper.getUserIdByCommentId(likeCommentReqVO.getCommentId());
+
+        if (Objects.equals(creatorId, userId)) {
+            throw new BizException(ResponseCodeEnum.CANT_LIKE_OWN_COMMENT);
+        }
+
         String bloomUserCommentLikeListKey = RedisConstants.buildBloomCommentLikesKey(userId);
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
@@ -436,11 +460,6 @@ public class CommentServiceImpl implements CommentService {
         });
     }
 
-    /**
-     * =========================================================================
-     * 删除评论 (全同步一致性改造，彻底避开 Redis 管道陷阱！)
-     * =========================================================================
-     */
     @Override
     public Response<?> deleteComment(DeleteCommentReqVO deleteCommentReqVO) {
         Long commentId = deleteCommentReqVO.getCommentId();
@@ -495,7 +514,7 @@ public class CommentServiceImpl implements CommentService {
                     commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentCommentId);
                 }
 
-                noteCountDOMapper.updateCommentTotalByNoteId(noteId, -finalDeleteCount);
+                noteCountDOMapper.insertOrUpdateCommentTotalByNoteId(noteId, -finalDeleteCount);
                 return null;
             } catch (Exception ex) {
                 status.setRollbackOnly();
@@ -510,19 +529,16 @@ public class CommentServiceImpl implements CommentService {
             log.error("删除KV存储评论内容异常", e);
         }
 
-        // ================== 【核心修复：在管道外提前查询 key 是否存在！】 ==================
         String noteCommentTotalKey = RedisConstants.buildNoteCommentTotalKey(noteId);
         boolean hasNoteCommentTotalKey = Boolean.TRUE.equals(redisTemplate.hasKey(noteCommentTotalKey));
 
         String countCommentKey = RedisConstants.buildCountCommentKey(parentCommentId);
         boolean hasCountCommentKey = Objects.equals(level, CommentLevelEnum.TWO.getCode()) && Boolean.TRUE.equals(redisTemplate.hasKey(countCommentKey));
-        // ==============================================================================
 
         // 5. 同步强力清理所有相关的 Redis 缓存
         redisTemplate.executePipelined(new SessionCallback<>() {
             @Override
             public Object execute(RedisOperations operations) {
-                // (1) 使用提前判断好的布尔值进行更新笔记总评论数缓存
                 if (hasNoteCommentTotalKey) {
                     operations.opsForHash().increment(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL, -finalDeleteCount);
                 }
@@ -541,12 +557,10 @@ public class CommentServiceImpl implements CommentService {
                         operations.delete(RedisConstants.buildCommentDetailKey(idToRemove));
                     }
 
-                    // (2) 使用提前判断好的布尔值扣减一级评论的子评论数缓存
                     if (hasCountCommentKey) {
                         operations.opsForHash().increment(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL, -finalDeleteCount);
                     }
 
-                    // 强制清理一级评论详情缓存，确保去 DB 里查最新的数据
                     operations.delete(RedisConstants.buildCommentDetailKey(parentCommentId));
                 }
                 return null;
@@ -584,9 +598,6 @@ public class CommentServiceImpl implements CommentService {
         return Response.success();
     }
 
-    /**
-     * 删除本地评论缓存
-     */
     @Override
     public void deleteCommentLocalCache(Long commentId) {
         LOCAL_CACHE.invalidate(commentId);

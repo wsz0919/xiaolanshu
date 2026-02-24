@@ -169,7 +169,17 @@ public class UserServiceImpl implements UserService {
         // 小哈书号
         String xiaohashuId = updateUserInfoReqVO.getXiaohashuId();
         if (StringUtils.isNotBlank(xiaohashuId)) {
+            // 校验格式
             Preconditions.checkArgument(ParamUtils.checkXiaohashuId(xiaohashuId), ResponseCodeEnum.XIAOLANSHU_ID_VALID_FAIL.getErrorMessage());
+
+            // ================== 新增：校验小蓝书号是否已被占用 ==================
+            UserDO existUserDO = userDOMapper.selectByXiaolanshuId(xiaohashuId);
+            // 如果查到了记录，且查出来的用户 ID 不是当前正在修改的用户 ID，说明被别人占用了
+            if (Objects.nonNull(existUserDO) && !Objects.equals(existUserDO.getId(), userId)) {
+                throw new BizException(ResponseCodeEnum.XIAOLANSHU_ID_ALREADY_EXIST);
+            }
+            // =================================================================
+
             userDO.setXiaolanshuId(xiaohashuId);
             needUpdate = true;
         }

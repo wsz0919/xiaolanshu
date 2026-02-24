@@ -40,4 +40,11 @@ public interface RelationService {
      * @return
      */
     PageResponse<FindFansUserRspVO> findFansList(FindFansListReqVO findFansListReqVO);
+
+    /**
+     * 是否关注笔记作者
+     * @param followUserReqVO
+     * @return
+     */
+    Response<?> checkFollowStatus(FollowUserReqVO followUserReqVO);
 }

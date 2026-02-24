@@ -155,5 +155,9 @@ public interface CommentDOMapper {
      */
     List<CommentDO> selectListByReplyCommentId(@Param("replyCommentId") Long replyCommentId);
 
+    /**
+     *
 
+     */
+    Long getUserIdByCommentId(@Param("commentId") Long commentId);
 }
