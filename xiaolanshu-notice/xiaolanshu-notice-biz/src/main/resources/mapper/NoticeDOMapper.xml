@@ -133,4 +133,13 @@
     ORDER BY create_time DESC
       LIMIT #{offset}, #{limit}
   </select>
+
+  <update id="deleteByBusinessKey">
+    UPDATE t_notice
+    SET is_deleted = 1
+    WHERE sender_id = #{senderId}
+      AND receiver_id = #{receiverId}
+      AND type = #{type}
+      AND target_id = #{targetId}
+  </update>
 </mapper>

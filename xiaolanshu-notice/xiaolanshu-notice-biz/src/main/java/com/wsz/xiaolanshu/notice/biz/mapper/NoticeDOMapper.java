@@ -30,4 +30,9 @@ public interface NoticeDOMapper {
                                   @Param("type") Integer type,
                                   @Param("offset") int offset,
                                   @Param("limit") int limit);
+
+    void deleteByBusinessKey(@Param("senderId") Long senderId,
+                             @Param("receiverId") Long receiverId,
+                             @Param("type") Integer type,
+                             @Param("targetId") Long targetId);
 }

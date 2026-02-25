@@ -29,4 +29,14 @@ public interface MQConstants {
      */
     String TOPIC_PUBLISH_COMMENT = "PublishCommentTopic";
 
+    /**
+     * Topic: 收藏、取消收藏共用一个
+     */
+    String TOPIC_COLLECT_OR_UN_COLLECT = "CollectUnCollectTopic";
+
+    /**
+     * Topic: 评论点赞、取消点赞共用一个 Topic
+     */
+    String TOPIC_COMMENT_LIKE_OR_UNLIKE = "CommentLikeUnlikeTopic";
+
 }

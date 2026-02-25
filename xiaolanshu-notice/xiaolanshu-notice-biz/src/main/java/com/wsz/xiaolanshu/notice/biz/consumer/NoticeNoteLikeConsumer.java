@@ -32,6 +32,7 @@ public class NoticeNoteLikeConsumer implements RocketMQListener<String> {
 
     @Resource
     private NoticeDOMapper noticeDOMapper;
+
     @Resource
     private DistributedIdGeneratorFeignApi idGeneratorApi;
 
