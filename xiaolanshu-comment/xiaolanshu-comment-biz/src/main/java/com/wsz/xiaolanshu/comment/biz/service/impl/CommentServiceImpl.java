@@ -388,7 +388,7 @@ public class CommentServiceImpl implements CommentService {
         }
 
         LikeUnlikeCommentMqDTO likeUnlikeCommentMqDTO = LikeUnlikeCommentMqDTO.builder()
-                .userId(userId).commentId(commentId).type(LikeUnlikeCommentTypeEnum.LIKE.getCode()).createTime(LocalDateTime.now()).build();
+                .userId(userId).commentId(commentId).type(LikeUnlikeCommentTypeEnum.LIKE.getCode()).commentCreatorId(creatorId).createTime(LocalDateTime.now()).build();
 
         Message<String> message = MessageBuilder.withPayload(JsonUtils.toJsonString(likeUnlikeCommentMqDTO)).build();
         String destination = MQConstants.TOPIC_COMMENT_LIKE_OR_UNLIKE + ":" + MQConstants.TAG_LIKE;

@@ -20,6 +20,11 @@ public interface MQConstants {
     String TAG_FOLLOW = "Follow";
 
     /**
+     * 关注标签
+     */
+    String TAG_UNFOLLOW = "Unfollow";
+
+    /**
      * Topic: 点赞、取消点赞共用一个
      */
     String TOPIC_LIKE_OR_UNLIKE = "LikeUnlikeTopic";
