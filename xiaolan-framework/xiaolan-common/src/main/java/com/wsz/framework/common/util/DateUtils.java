@@ -55,9 +55,12 @@ public class DateUtils {
         long daysDiff = ChronoUnit.DAYS.between(dateTime, now);
         long hoursDiff = ChronoUnit.HOURS.between(dateTime, now);
         long minutesDiff = ChronoUnit.MINUTES.between(dateTime, now);
+        long secondsDiff = ChronoUnit.SECONDS.between(dateTime, now);
 
         if (daysDiff < 1) {  // 如果是今天
-            if (hoursDiff < 1) {  // 如果是几分钟前
+            if (secondsDiff < 60) { //如果是几秒钟前
+                return "刚刚";
+            } else if (hoursDiff < 1) {  // 如果是几分钟前
                 return minutesDiff + "分钟前";
             } else {  // 如果是几小时前
                 return hoursDiff + "小时前";

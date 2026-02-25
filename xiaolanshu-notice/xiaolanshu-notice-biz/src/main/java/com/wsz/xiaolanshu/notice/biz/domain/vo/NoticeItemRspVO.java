@@ -20,6 +20,7 @@ public class NoticeItemRspVO {
     private String quoteText; // 被引用的原文 / 笔记标题
     private String cover; // 右侧封面图
     private Boolean isMutual; // 是否互粉 (仅关注Tab)
+    private Integer subType; // 细分动作
 
     @Data
     public static class NoticeUserVO {

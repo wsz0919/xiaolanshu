@@ -35,4 +35,14 @@ public interface NoticeDOMapper {
                              @Param("receiverId") Long receiverId,
                              @Param("type") Integer type,
                              @Param("targetId") Long targetId);
+
+    Long selectNoticeIdByBusinessKey(@Param("senderId") Long senderId,
+                                     @Param("receiverId") Long receiverId,
+                                     @Param("type") Integer type,
+                                     @Param("targetId") Long targetId);
+
+    /**
+     * 根据 ID 集合批量查询通知
+     */
+    List<NoticeDO> selectByIds(@Param("ids") List<Long> ids);
 }

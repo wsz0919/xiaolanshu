@@ -15,6 +15,7 @@ import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
 import com.wsz.xiaolanshu.note.api.NoteFeignApi;
 import com.wsz.xiaolanshu.note.dto.req.FindNoteDetailReqDTO;
 import com.wsz.xiaolanshu.note.dto.resp.FindNoteDetailRspDTO;
+import com.wsz.xiaolanshu.notice.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO;
 import com.wsz.xiaolanshu.notice.biz.domain.vo.NoticeItemRspVO;
 import com.wsz.xiaolanshu.notice.biz.domain.vo.NoticePageReqVO;
@@ -28,13 +29,14 @@ import com.wsz.xiaolanshu.user.relation.dto.FollowUserReqDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.DefaultTypedTuple;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -66,6 +68,12 @@ public class NoticeServiceImpl implements NoticeService {
     @Resource
     private UserRelationFeignApi relationFeignApi;
 
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource(name = "taskExecutor")
+    private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+
     @Override
     public PageResponse<NoticeItemRspVO> getNoticeList(NoticePageReqVO reqVO) {
         Long currentUserId = LoginUserContextHolder.getUserId();
@@ -76,21 +84,49 @@ public class NoticeServiceImpl implements NoticeService {
         int pageNo = reqVO.getPageNo();
         int offset = (pageNo - 1) * pageSize;
 
-        // 2. 查总数 (原生)
-        long total = noticeDOMapper.selectCountByReceiverIdAndType(currentUserId, type);
+        String redisKey = RedisConstants.buildNoticeZSetKey(currentUserId, type);
+        List<NoticeDO> doList = new ArrayList<>();
+        long total;
 
-        // 如果没有数据，直接利用您的 PageResponse 返回空结果
-        if (total == 0) {
-            PageResponse<NoticeItemRspVO> emptyPage = new PageResponse<>();
-            emptyPage.setTotalCount(0L);
-            emptyPage.setPageNo(pageNo);
-            // 如果您的 PageResponse 类中由于泛型无法识别 setData，请根据您自己 common 里的字段名（如 setList 或 setRecords）调整
-            emptyPage.setData(Collections.emptyList());
-            return emptyPage;
+        // 1. 判断 Key 是否存在
+        Boolean hasKey = redisTemplate.hasKey(redisKey);
+
+        if (Boolean.TRUE.equals(hasKey)) {
+            log.info("==> 从 Redis ZSet 中获取通知列表分页数据");
+            // 2. 存在则直接查 Redis 总数
+            total = redisTemplate.opsForZSet().zCard(redisKey);
+
+            if (total > 0) {
+                // 3. ZSet 倒序分页查询，取本页对应的 ID 列表
+                Set<ZSetOperations.TypedTuple<Object>> typedTuples = redisTemplate.opsForZSet()
+                        .reverseRangeWithScores(redisKey, offset, offset + pageSize - 1);
+
+                if (typedTuples != null && !typedTuples.isEmpty()) {
+                    List<Long> noticeIds = typedTuples.stream()
+                            .map(tuple -> Long.valueOf(String.valueOf(tuple.getValue())))
+                            .collect(Collectors.toList());
+
+                    // 4. 根据拿到的 ID 列表，去 MySQL 批量查出 NoticeDO，并按照 ID 列表的顺序排好
+                    doList = noticeDOMapper.selectByIds(noticeIds);
+
+                    // 保证从 DB 查出来的数据顺序和 Redis ZSet 的顺序一致
+                    Map<Long, NoticeDO> map = doList.stream().collect(Collectors.toMap(NoticeDO::getId, n -> n));
+                    doList = noticeIds.stream().map(map::get).filter(Objects::nonNull).collect(Collectors.toList());
+                }
+            }
+        } else {
+            log.info("==> Redis 缓存未命中，回源查 MySQL 并重建缓存");
+            // 5. 缓存不存在，走 MySQL 查总数
+            total = noticeDOMapper.selectCountByReceiverIdAndType(currentUserId, type);
+            if (total > 0) {
+                // 6. 去库里查第一页的数据用于返回
+                doList = noticeDOMapper.selectPageList(currentUserId, type, offset, pageSize);
+
+                // 7. 【异步】起个线程，去数据库捞最近的 500 条数据，重新塞进 ZSet 建缓存
+                // 为了不阻塞当前请求，可以交给线程池
+                rebuildZSetCacheAsync(currentUserId, type, redisKey);
+            }
         }
-
-        // 3. 原生分页查询
-        List<NoticeDO> doList = noticeDOMapper.selectPageList(currentUserId, type, offset, pageSize);
 
         if (CollectionUtils.isEmpty(doList)) {
             PageResponse<NoticeItemRspVO> emptyPage = new PageResponse<>();
@@ -150,9 +186,11 @@ public class NoticeServiceImpl implements NoticeService {
                 if (noteId != null && noteId > 0) {
                     noteReq.setId(noteId);
                     FindNoteDetailRspDTO note = noteFeignApi.findNoteDetail(noteReq).getData();
-                    String cover = String.valueOf(note.getImgUris());
-                    if (note != null && StringUtils.isNotBlank(cover)) {
-                        item.setCover(cover.split(",")[0]);
+                    if (note != null) {
+                        String cover = String.valueOf(note.getImgUris());
+                        if (StringUtils.isNotBlank(cover) && !"null".equals(cover)) {
+                            item.setCover(cover.split(",")[0]);
+                        }
                     }
                 }
             }
@@ -186,7 +224,7 @@ public class NoticeServiceImpl implements NoticeService {
                         userVO.setIsAuthor(notice.getSenderId().equals(note.getCreatorId()));
 
                         if (notice.getSubType() == 31) {
-                            item.setQuoteText(note.getTitle());
+                            item.setSubType(31);
                         } else if (notice.getSubType() == 32 && comment.getReplyCommentId() != null) {
                             likeCommentReqDTO.setCommentId(comment.getReplyCommentId());
                             FindCommentByIdRspDTO parentComment = commentFeignApi.getNoteIdByCommentId(likeCommentReqDTO).getData();
@@ -237,5 +275,25 @@ public class NoticeServiceImpl implements NoticeService {
             case 32 -> "回复了你的评论";
             default -> "与你产生了互动";
         };
+    }
+
+    /**
+     * 异步重建 ZSet 缓存
+     */
+    private void rebuildZSetCacheAsync(Long userId, Integer type, String redisKey) {
+        threadPoolTaskExecutor.execute(() -> {
+            // 捞取库里最新的 500 条
+            List<NoticeDO> recentNotices = noticeDOMapper.selectPageList(userId, type, 0, 500);
+            if (!CollectionUtils.isEmpty(recentNotices)) {
+                Set<ZSetOperations.TypedTuple<Object>> tuples = new HashSet<>();
+                for (NoticeDO notice : recentNotices) {
+                    // 使用 Date 的毫秒数作为 score
+                    long score = DateUtils.localDateTime2Timestamp(notice.getCreateTime());
+                    tuples.add(new DefaultTypedTuple<>(String.valueOf(notice.getId()), (double) score));
+                }
+                redisTemplate.opsForZSet().add(redisKey, tuples);
+                redisTemplate.expire(redisKey, 7, java.util.concurrent.TimeUnit.DAYS); // 设个7天过期
+            }
+        });
     }
 }

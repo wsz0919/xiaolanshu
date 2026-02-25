@@ -1,11 +1,13 @@
 package com.wsz.xiaolanshu.notice.biz.consumer;
 
+import cn.hutool.core.util.RandomUtil;
 import com.wsz.framework.common.util.JsonUtils;
 import com.wsz.xiaolanshu.distributed.id.generator.api.DistributedIdGeneratorFeignApi;
 import com.wsz.xiaolanshu.note.api.NoteFeignApi;
 import com.wsz.xiaolanshu.note.dto.req.FindNoteDetailReqDTO;
 import com.wsz.xiaolanshu.note.dto.resp.FindNoteDetailRspDTO;
 import com.wsz.xiaolanshu.notice.biz.constant.MQConstants;
+import com.wsz.xiaolanshu.notice.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO;
 import com.wsz.xiaolanshu.notice.biz.domain.dto.NoticePublishCommentMqDTO;
 import com.wsz.xiaolanshu.notice.biz.mapper.NoticeDOMapper;
@@ -13,9 +15,11 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RocketMQMessageListener(
@@ -31,6 +35,8 @@ public class NoticeCommentConsumer implements RocketMQListener<String> {
     private DistributedIdGeneratorFeignApi idGeneratorApi;
     @Resource
     private NoteFeignApi noteFeignApi;
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Override
     public void onMessage(String body) {
@@ -40,13 +46,12 @@ public class NoticeCommentConsumer implements RocketMQListener<String> {
 
         Long receiverId = null;
 
-        // 1. 判断通知接收者
+        // 1. 判断通知应该发给谁
         if (dto.getReplyCommentId() != null && dto.getReplyCommentId() > 0) {
-            // 情况A：回复了别人的评论 -> 通知被回复的人
+            // 这是回复评论 -> 发给被回复的人
             receiverId = dto.getReplyUserId();
         } else {
-            // 情况B：直接评论了笔记 -> 通知笔记作者
-            // 需要调用笔记服务查询作者 ID (通常发送端也会传，如果没传则查库兜底)
+            // 这是直接评论笔记 -> 发给笔记作者
             FindNoteDetailReqDTO reqDTO = new FindNoteDetailReqDTO();
             reqDTO.setId(dto.getNoteId());
             FindNoteDetailRspDTO note = noteFeignApi.findNoteDetail(reqDTO).getData();
@@ -55,21 +60,27 @@ public class NoticeCommentConsumer implements RocketMQListener<String> {
             }
         }
 
-        // 2. 校验：ID无效 或 自己评论自己 不发通知
-        if (receiverId == null || receiverId == 0L || receiverId.equals(dto.getCreatorId())) {
-            return;
-        }
+        // 防御性拦截
+        if (receiverId == null || receiverId == 0L || receiverId.equals(dto.getCreatorId())) return;
 
-        // 3. 构建并插入通知
+        Integer type = 3; // 3-评论和@
+        String redisKey = RedisConstants.buildNoticeZSetKey(receiverId, type);
+
+        // 2. 构造通知对象
+        Long noticeId = Long.valueOf(idGeneratorApi.getSegmentId("leaf-segment-notice-id"));
         NoticeDO notice = new NoticeDO();
-        notice.setId(Long.valueOf(idGeneratorApi.getSegmentId("leaf-segment-notice-id")));
+        notice.setId(noticeId);
         notice.setReceiverId(receiverId);
         notice.setSenderId(dto.getCreatorId());
-        notice.setType(3); // 3-评论和@
-        // 31-评论笔记，32-回复评论
+        notice.setType(type);
         notice.setSubType(dto.getReplyCommentId() == null || dto.getReplyCommentId() == 0 ? 31 : 32);
-        notice.setTargetId(dto.getCommentId()); // targetId 存当前这条评论的 ID
+        notice.setTargetId(dto.getCommentId());
 
+        // 3. 入库并写缓存
         noticeDOMapper.insert(notice);
+        redisTemplate.opsForZSet().add(redisKey, String.valueOf(noticeId), System.currentTimeMillis());
+        long expireSeconds = 60 * 60 * 24 * 7 + RandomUtil.randomInt(60 * 60);
+        redisTemplate.expire(redisKey, expireSeconds, TimeUnit.SECONDS);
+        redisTemplate.opsForZSet().removeRange(redisKey, 0, -501);
     }
 }
