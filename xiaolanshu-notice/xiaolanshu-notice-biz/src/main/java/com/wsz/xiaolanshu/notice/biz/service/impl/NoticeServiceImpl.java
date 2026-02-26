@@ -97,16 +97,16 @@ public class NoticeServiceImpl implements NoticeService {
             total = redisTemplate.opsForZSet().zCard(redisKey);
 
             if (total > 0) {
-                // 3. ZSet 倒序分页查询，取本页对应的 ID 列表
-                Set<ZSetOperations.TypedTuple<Object>> typedTuples = redisTemplate.opsForZSet()
-                        .reverseRangeWithScores(redisKey, offset, offset + pageSize - 1);
+                // 3. ZSet 倒序分页查询，取本页对应的 ID 列表 (直接取值即可，不需要带上 Score)
+                Set<Object> zSetIds = redisTemplate.opsForZSet()
+                        .reverseRange(redisKey, offset, offset + pageSize - 1);
 
-                if (typedTuples != null && !typedTuples.isEmpty()) {
-                    List<Long> noticeIds = typedTuples.stream()
-                            .map(tuple -> Long.valueOf(String.valueOf(tuple.getValue())))
+                if (zSetIds != null && !zSetIds.isEmpty()) {
+                    List<Long> noticeIds = zSetIds.stream()
+                            .map(id -> Long.valueOf(String.valueOf(id)))
                             .collect(Collectors.toList());
 
-                    // 4. 根据拿到的 ID 列表，去 MySQL 批量查出 NoticeDO，并按照 ID 列表的顺序排好
+                    // 4. 根据拿到的 ID 列表，去 MySQL 批量查出 NoticeDO
                     doList = noticeDOMapper.selectByIds(noticeIds);
 
                     // 保证从 DB 查出来的数据顺序和 Redis ZSet 的顺序一致
@@ -154,6 +154,7 @@ public class NoticeServiceImpl implements NoticeService {
             item.setId(String.valueOf(notice.getId()));
             item.setTime(DateUtils.formatRelativeTime(notice.getCreateTime()));
             item.setActionText(getActionText(notice.getSubType()));
+            item.setSubType(notice.getSubType());
 
             FindUserByIdRspDTO sender = userMap.get(notice.getSenderId());
             NoticeItemRspVO.NoticeUserVO userVO = new NoticeItemRspVO.NoticeUserVO();
@@ -223,9 +224,7 @@ public class NoticeServiceImpl implements NoticeService {
                         }
                         userVO.setIsAuthor(notice.getSenderId().equals(note.getCreatorId()));
 
-                        if (notice.getSubType() == 31) {
-                            item.setSubType(31);
-                        } else if (notice.getSubType() == 32 && comment.getReplyCommentId() != null) {
+                        if (notice.getSubType() == 32 && comment.getReplyCommentId() != null) {
                             likeCommentReqDTO.setCommentId(comment.getReplyCommentId());
                             FindCommentByIdRspDTO parentComment = commentFeignApi.getNoteIdByCommentId(likeCommentReqDTO).getData();
                             if(parentComment != null) {
@@ -287,12 +286,16 @@ public class NoticeServiceImpl implements NoticeService {
             if (!CollectionUtils.isEmpty(recentNotices)) {
                 Set<ZSetOperations.TypedTuple<Object>> tuples = new HashSet<>();
                 for (NoticeDO notice : recentNotices) {
-                    // 使用 Date 的毫秒数作为 score
-                    long score = DateUtils.localDateTime2Timestamp(notice.getCreateTime());
+
+                    long score = notice.getCreateTime()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toInstant()
+                            .toEpochMilli();
+
                     tuples.add(new DefaultTypedTuple<>(String.valueOf(notice.getId()), (double) score));
                 }
                 redisTemplate.opsForZSet().add(redisKey, tuples);
-                redisTemplate.expire(redisKey, 7, java.util.concurrent.TimeUnit.DAYS); // 设个7天过期
+                redisTemplate.expire(redisKey, 7, java.util.concurrent.TimeUnit.DAYS);
             }
         });
     }
