@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.comment.biz.service;
 
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.CommentLikeStatusDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeCommentReqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.vo.*;
@@ -69,4 +70,11 @@ public interface CommentService {
      * @return
      */
     Response<FindCommentByIdRspDTO> getNoteIdByCommentId(LikeCommentReqDTO vo);
+
+    /**
+     * 根据用户 ID 和 笔记 ID 获取是否点赞状态
+     * @param vo
+     * @return
+     */
+    Response<Boolean> getCommentLikeStatus(CommentLikeStatusDTO vo);
 }

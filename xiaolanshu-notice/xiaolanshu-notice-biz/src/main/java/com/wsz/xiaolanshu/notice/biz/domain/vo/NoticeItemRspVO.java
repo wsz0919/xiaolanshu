@@ -21,9 +21,12 @@ public class NoticeItemRspVO {
     private String cover; // 右侧封面图
     private Boolean isMutual; // 是否互粉 (仅关注Tab)
     private Integer subType; // 细分动作
+    private Long targetId; // 笔记 ID 或 评论 ID
+    private Long noteId; // 笔记 ID
 
     @Data
     public static class NoticeUserVO {
+        private Long userId; // 用户 ID
         private String nickname;
         private String avatar;
         private Boolean isAuthor; // 是否为原笔记作者

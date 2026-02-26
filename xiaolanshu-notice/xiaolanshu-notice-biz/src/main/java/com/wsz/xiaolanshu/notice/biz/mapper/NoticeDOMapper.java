@@ -45,4 +45,5 @@ public interface NoticeDOMapper {
      * 根据 ID 集合批量查询通知
      */
     List<NoticeDO> selectByIds(@Param("ids") List<Long> ids);
+
 }

@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.comment.biz.controller;
 import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.CommentLikeStatusDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeCommentReqDTO;
 import com.wsz.xiaolanshu.comment.biz.domain.vo.*;
@@ -67,9 +68,15 @@ public class CommentController {
     }
 
     @PostMapping("/getNoteIdByCommentId")
-    @ApiOperationLog(description = "根据评论ID获取笔记ID")
+    @ApiOperationLog(description = "根据评论 ID 获取笔记 ID ")
     public Response<FindCommentByIdRspDTO> getNoteIdByCommentId(@Validated @RequestBody LikeCommentReqDTO vo) {
         return commentService.getNoteIdByCommentId(vo);
+    }
+
+    @PostMapping("/getCommentLikeStatus")
+    @ApiOperationLog(description = "根据用户 ID 和 笔记 ID 获取是否点赞状态")
+    public Response<Boolean> getCommentLikeStatus(@Validated @RequestBody CommentLikeStatusDTO vo) {
+        return commentService.getCommentLikeStatus(vo);
     }
 }
 

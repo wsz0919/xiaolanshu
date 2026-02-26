@@ -19,10 +19,7 @@ import com.wsz.xiaolanshu.comment.biz.constant.MQConstants;
 import com.wsz.xiaolanshu.comment.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.comment.biz.domain.dataobject.CommentDO;
 import com.wsz.xiaolanshu.comment.biz.domain.dataobject.CommentLikeDO;
-import com.wsz.xiaolanshu.comment.biz.domain.dto.FindCommentByIdRspDTO;
-import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeCommentReqDTO;
-import com.wsz.xiaolanshu.comment.biz.domain.dto.LikeUnlikeCommentMqDTO;
-import com.wsz.xiaolanshu.comment.biz.domain.dto.PublishCommentMqDTO;
+import com.wsz.xiaolanshu.comment.biz.domain.dto.*;
 import com.wsz.xiaolanshu.comment.biz.domain.vo.*;
 import com.wsz.xiaolanshu.comment.biz.enums.*;
 import com.wsz.xiaolanshu.comment.biz.mapper.CommentDOMapper;
@@ -407,6 +404,7 @@ public class CommentServiceImpl implements CommentService {
         Long commentId = unLikeCommentReqVO.getCommentId();
         checkCommentIsExist(commentId);
         Long userId = LoginUserContextHolder.getUserId();
+        Long creatorId = commentDOMapper.getUserIdByCommentId(unLikeCommentReqVO.getCommentId());
         String bloomUserCommentLikeListKey = RedisConstants.buildBloomCommentLikesKey(userId);
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
@@ -431,7 +429,7 @@ public class CommentServiceImpl implements CommentService {
         }
 
         LikeUnlikeCommentMqDTO likeUnlikeCommentMqDTO = LikeUnlikeCommentMqDTO.builder()
-                .userId(userId).commentId(commentId).type(LikeUnlikeCommentTypeEnum.UNLIKE.getCode()).createTime(LocalDateTime.now()).build();
+                .userId(userId).commentId(commentId).type(LikeUnlikeCommentTypeEnum.UNLIKE.getCode()).commentCreatorId(creatorId).createTime(LocalDateTime.now()).build();
 
         Message<String> message = MessageBuilder.withPayload(JsonUtils.toJsonString(likeUnlikeCommentMqDTO)).build();
         String destination = MQConstants.TOPIC_COMMENT_LIKE_OR_UNLIKE + ":" + MQConstants.TAG_UNLIKE;
@@ -1059,5 +1057,14 @@ public class CommentServiceImpl implements CommentService {
     public Response<FindCommentByIdRspDTO> getNoteIdByCommentId(LikeCommentReqDTO vo) {
         FindCommentByIdRspDTO dto = commentDOMapper.getNoteIdByCommentId(vo.getCommentId());
         return Response.success(dto);
+    }
+
+    @Override
+    public Response<Boolean> getCommentLikeStatus(CommentLikeStatusDTO vo) {
+        int count = commentLikeDOMapper.selectCountByUserIdAndCommentId(vo.getUserId(), vo.getCommentId());
+        if (count > 0) {
+            return Response.success(true);
+        }
+        return Response.success(false);
     }
 }

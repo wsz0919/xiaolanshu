@@ -1,5 +1,7 @@
 package com.wsz.xiaolanshu.notice.biz.service.impl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.wsz.framework.biz.context.holder.LoginUserContextHolder;
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.util.DateUtils;
@@ -37,6 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -73,6 +76,15 @@ public class NoticeServiceImpl implements NoticeService {
 
     @Resource(name = "taskExecutor")
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+
+    /**
+     * 评论详情本地缓存
+     */
+    private static final Cache<Long, String> LOCAL_CACHE = Caffeine.newBuilder()
+            .initialCapacity(10000) // 设置初始容量为 10000 个条目
+            .maximumSize(10000) // 设置缓存的最大容量为 10000 个条目
+            .expireAfterWrite(1, TimeUnit.HOURS) // 设置缓存条目在写入后 1 小时过期
+            .build();
 
     @Override
     public PageResponse<NoticeItemRspVO> getNoticeList(NoticePageReqVO reqVO) {
@@ -159,6 +171,7 @@ public class NoticeServiceImpl implements NoticeService {
             FindUserByIdRspDTO sender = userMap.get(notice.getSenderId());
             NoticeItemRspVO.NoticeUserVO userVO = new NoticeItemRspVO.NoticeUserVO();
             if (sender != null) {
+                userVO.setUserId(notice.getReceiverId());
                 userVO.setNickname(sender.getNickName());
                 userVO.setAvatar(sender.getAvatar());
                 userVO.setIsAuthor(false);
@@ -218,6 +231,8 @@ public class NoticeServiceImpl implements NoticeService {
 
                     noteReq.setId(comment.getNoteId());
                     FindNoteDetailRspDTO note = noteFeignApi.findNoteDetail(noteReq).getData();
+                    item.setTargetId(notice.getTargetId());
+                    item.setNoteId(comment.getNoteId());
                     if (note != null) {
                         if(StringUtils.isNotBlank(String.valueOf(note.getImgUris()))) {
                             item.setCover(String.valueOf(note.getImgUris()).split(",")[0]);
