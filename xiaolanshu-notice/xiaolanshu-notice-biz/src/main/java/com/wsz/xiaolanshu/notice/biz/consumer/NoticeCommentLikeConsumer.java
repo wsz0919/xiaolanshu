@@ -60,9 +60,9 @@ public class NoticeCommentLikeConsumer implements RocketMQListener<String> {
             redisTemplate.opsForZSet().removeRange(redisKey, 0, -501);
 
         } else { // 0-取消点赞评论
-            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getCommentCreatorId(), type, dto.getCommentId());
+            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getCommentCreatorId(), 13, dto.getCommentId());
             if (noticeId != null) {
-                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getCommentCreatorId(), type, dto.getCommentId());
+                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getCommentCreatorId(), 13, dto.getCommentId());
                 redisTemplate.opsForZSet().remove(redisKey, String.valueOf(noticeId));
             }
         }

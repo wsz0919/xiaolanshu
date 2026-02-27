@@ -147,8 +147,8 @@ public class CommentServiceImpl implements CommentService {
         long pageSize = 7;
 
         String noteCommentTotalKey = RedisConstants.buildNoteCommentTotalKey(noteId);
-        Number commentTotal = (Number) redisTemplate.opsForHash().get(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL);
-        long count = Objects.isNull(commentTotal) ? 0L : commentTotal.longValue();
+        Object commentTotal = redisTemplate.opsForHash().get(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL);
+        long count = Objects.isNull(commentTotal) ? 0L : Long.parseLong(commentTotal.toString());
 
         if (Objects.isNull(commentTotal)) {
             Long dbCount = noteCountDOMapper.selectCommentTotalByNoteId(noteId);
@@ -199,7 +199,6 @@ public class CommentServiceImpl implements CommentService {
                 if (CollUtil.size(localCacheExpiredCommentIds) == 0) {
                     if (CollUtil.isNotEmpty(commentRspVOS)) {
                         setCommentCountData(commentRspVOS, localCacheExpiredCommentIds);
-                        // ====== 修复点1：补上动态点赞状态 ======
                         setCommentIsLikedData(commentRspVOS);
                     }
                     return PageResponse.success(commentRspVOS, pageNo, count, pageSize);
@@ -229,7 +228,6 @@ public class CommentServiceImpl implements CommentService {
             commentRspVOS = commentRspVOS.stream().sorted(Comparator.comparing(FindCommentItemRspVO::getHeat).reversed()).collect(Collectors.toList());
             syncCommentDetail2LocalCache(commentRspVOS);
 
-            // ====== 修复点2：Redis缓存命中提前返回前，补上动态点赞状态 ======
             if (CollUtil.isNotEmpty(commentRspVOS)) {
                 setCommentIsLikedData(commentRspVOS);
             }
@@ -253,7 +251,7 @@ public class CommentServiceImpl implements CommentService {
         redisTemplate.executePipelined(new SessionCallback<>() {
             @Override
             public Object execute(RedisOperations operations) {
-                operations.opsForHash().put(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL, dbCount);
+                operations.opsForHash().put(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL, String.valueOf(dbCount));
                 long expireTime = 60*60 + RandomUtil.randomInt(4*60*60);
                 operations.expire(noteCommentTotalKey, expireTime, TimeUnit.SECONDS);
                 return null;
@@ -268,8 +266,8 @@ public class CommentServiceImpl implements CommentService {
         long pageSize = 6;
 
         String countCommentKey = RedisConstants.buildCountCommentKey(parentCommentId);
-        Number redisCount = (Number) redisTemplate.opsForHash().get(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL);
-        long count = Objects.isNull(redisCount) ? 0L : redisCount.longValue();
+        Object redisCount = redisTemplate.opsForHash().get(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL);
+        long count = Objects.isNull(redisCount) ? 0L : Long.parseLong(redisCount.toString());
 
         if (Objects.isNull(redisCount)) {
             Long dbCount = commentDOMapper.selectChildCommentTotalById(parentCommentId);
@@ -322,7 +320,6 @@ public class CommentServiceImpl implements CommentService {
 
                 childCommentRspVOS = childCommentRspVOS.stream().sorted(Comparator.comparing(FindChildCommentItemRspVO::getCommentId)).collect(Collectors.toList());
 
-                // ====== 修复点3：二级评论缓存命中提前返回前，补上动态点赞状态 ======
                 if (CollUtil.isNotEmpty(childCommentRspVOS)) {
                     setChildCommentIsLikedData(childCommentRspVOS);
                 }
@@ -360,7 +357,7 @@ public class CommentServiceImpl implements CommentService {
         script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/bloom_comment_like_check.lua")));
         script.setResultType(Long.class);
 
-        Long result = redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), commentId);
+        Long result = redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), String.valueOf(commentId));
         CommentLikeLuaResultEnum commentLikeLuaResultEnum = CommentLikeLuaResultEnum.valueOf(result);
 
         if (Objects.isNull(commentLikeLuaResultEnum)) throw new BizException(ResponseCodeEnum.PARAM_NOT_VALID);
@@ -376,7 +373,7 @@ public class CommentServiceImpl implements CommentService {
                 batchAddCommentLike2BloomAndExpire(userId, expireSeconds, bloomUserCommentLikeListKey);
                 script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/bloom_add_comment_like_and_expire.lua")));
                 script.setResultType(Long.class);
-                redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), commentId, expireSeconds);
+                redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), String.valueOf(commentId), String.valueOf(expireSeconds));
             }
             case COMMENT_LIKED -> {
                 int count = commentLikeDOMapper.selectCountByUserIdAndCommentId(userId, commentId);
@@ -411,7 +408,7 @@ public class CommentServiceImpl implements CommentService {
         script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/bloom_comment_unlike_check.lua")));
         script.setResultType(Long.class);
 
-        Long result = redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), commentId);
+        Long result = redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), String.valueOf(commentId));
         CommentUnlikeLuaResultEnum commentUnlikeLuaResultEnum = CommentUnlikeLuaResultEnum.valueOf(result);
 
         if (Objects.isNull(commentUnlikeLuaResultEnum)) throw new BizException(ResponseCodeEnum.PARAM_NOT_VALID);
@@ -546,7 +543,8 @@ public class CommentServiceImpl implements CommentService {
 
                 if (Objects.equals(level, CommentLevelEnum.ONE.getCode())) {
                     String zsetKey = RedisConstants.buildCommentListKey(noteId);
-                    operations.opsForZSet().remove(zsetKey, commentId);
+                    // 【关键修改点：Long 转 String，防止 ClassCastException】
+                    operations.opsForZSet().remove(zsetKey, String.valueOf(commentId));
                     operations.delete(RedisConstants.buildCommentDetailKey(commentId));
                     operations.delete(RedisConstants.buildChildCommentListKey(commentId));
                     operations.delete(RedisConstants.buildCountCommentKey(commentId));
@@ -554,7 +552,8 @@ public class CommentServiceImpl implements CommentService {
                 } else {
                     String zsetKey = RedisConstants.buildChildCommentListKey(parentCommentId);
                     for (Long idToRemove : allNeedDeleteCommentIds) {
-                        operations.opsForZSet().remove(zsetKey, idToRemove);
+                        // 【关键修改点：Long 转 String，防止 ClassCastException】
+                        operations.opsForZSet().remove(zsetKey, String.valueOf(idToRemove));
                         operations.delete(RedisConstants.buildCommentDetailKey(idToRemove));
                     }
 
@@ -568,7 +567,7 @@ public class CommentServiceImpl implements CommentService {
             }
         });
 
-        // 6. 二级评论额外处理：处理首评标记和重新计算热度值
+        // 6. 二级评论额外处理
         if (Objects.equals(level, CommentLevelEnum.TWO.getCode())) {
             CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentCommentId);
             if (Objects.isNull(earliestCommentDO)) {
@@ -611,9 +610,11 @@ public class CommentServiceImpl implements CommentService {
                 DefaultRedisScript<Long> script = new DefaultRedisScript<>();
                 script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/bloom_batch_add_comment_like_and_expire.lua")));
                 script.setResultType(Long.class);
+
                 List<Object> luaArgs = Lists.newArrayList();
-                commentLikeDOS.forEach(commentLikeDO -> luaArgs.add(commentLikeDO.getCommentId()));
-                luaArgs.add(expireSeconds);
+                commentLikeDOS.forEach(commentLikeDO -> luaArgs.add(String.valueOf(commentLikeDO.getCommentId())));
+                luaArgs.add(String.valueOf(expireSeconds));
+
                 redisTemplate.execute(script, Collections.singletonList(bloomUserCommentLikeListKey), luaArgs.toArray());
             }
         } catch (Exception e) {
@@ -686,8 +687,11 @@ public class CommentServiceImpl implements CommentService {
                         commentDOS.forEach(commentDO -> {
                             String key = RedisConstants.buildCountCommentKey(commentDO.getId());
                             Integer level = commentDO.getLevel();
-                            Map<String, Long> fieldsMap = Objects.equals(level, CommentLevelEnum.ONE.getCode()) ?
-                                    Map.of(RedisConstants.FIELD_CHILD_COMMENT_TOTAL, commentDO.getChildCommentTotal(), RedisConstants.FIELD_LIKE_TOTAL, commentDO.getLikeTotal()) : Map.of(RedisConstants.FIELD_LIKE_TOTAL, commentDO.getLikeTotal());
+                            Map<String, String> fieldsMap = new HashMap<>();
+                            fieldsMap.put(RedisConstants.FIELD_LIKE_TOTAL, String.valueOf(commentDO.getLikeTotal()));
+                            if (Objects.equals(level, CommentLevelEnum.ONE.getCode())) {
+                                fieldsMap.put(RedisConstants.FIELD_CHILD_COMMENT_TOTAL, String.valueOf(commentDO.getChildCommentTotal()));
+                            }
                             operations.opsForHash().putAll(key, fieldsMap);
                             long expireTime = RandomUtil.randomInt(5 * 60 * 60);
                             operations.expire(key, expireTime, TimeUnit.SECONDS);
@@ -796,7 +800,7 @@ public class CommentServiceImpl implements CommentService {
                 for (CommentDO childCommentDO : childCommentDOS) {
                     Long commentId = childCommentDO.getId();
                     long commentTimestamp = DateUtils.localDateTime2Timestamp(childCommentDO.getCreateTime());
-                    zSetOps.add(childCommentZSetKey, commentId, commentTimestamp);
+                    zSetOps.add(childCommentZSetKey, String.valueOf(commentId), commentTimestamp);
                 }
                 int randomExpiryTime = 60*60 + RandomUtil.randomInt(4 * 60 * 60);
                 redisTemplate.expire(childCommentZSetKey, randomExpiryTime, TimeUnit.SECONDS);
@@ -809,7 +813,7 @@ public class CommentServiceImpl implements CommentService {
         redisTemplate.executePipelined(new SessionCallback<>() {
             @Override
             public Object execute(RedisOperations operations) {
-                operations.opsForHash().put(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL, dbCount);
+                operations.opsForHash().put(countCommentKey, RedisConstants.FIELD_CHILD_COMMENT_TOTAL, String.valueOf(dbCount));
                 long expireTime = 60*60 + RandomUtil.randomInt(4*60*60);
                 operations.expire(countCommentKey, expireTime, TimeUnit.SECONDS);
                 return null;
@@ -836,8 +840,7 @@ public class CommentServiceImpl implements CommentService {
             Map<Object, Object> hash = commentIdAndCountMap.get(commentId);
             if (CollUtil.isNotEmpty(hash)) {
                 Object childCommentTotalObj = hash.get(RedisConstants.FIELD_CHILD_COMMENT_TOTAL);
-                Long childCommentTotal = Objects.isNull(childCommentTotalObj) ? 0 : Long.parseLong(childCommentTotalObj.toString());
-                Object likeTotalObj = hash.get(RedisConstants.FIELD_LIKE_TOTAL);
+                Long childCommentTotal = Objects.isNull(childCommentTotalObj) ? 0 : Long.parseLong(childCommentTotalObj.toString());                Object likeTotalObj = hash.get(RedisConstants.FIELD_LIKE_TOTAL);
                 Long likeTotal = Objects.isNull(likeTotalObj) ? 0 : Long.parseLong(likeTotalObj.toString());
                 commentRspVO.setChildCommentTotal(childCommentTotal);
                 commentRspVO.setLikeTotal(likeTotal);
@@ -959,7 +962,7 @@ public class CommentServiceImpl implements CommentService {
                 for (CommentDO commentDO : commentDOS) {
                     Long commentId = commentDO.getId();
                     Double commentHeat = commentDO.getHeat();
-                    zSetOps.add(key, commentId, commentHeat);
+                    zSetOps.add(key, String.valueOf(commentId), commentHeat);
                 }
                 int randomExpiryTime = RandomUtil.randomInt(5 * 60 * 60);
                 redisTemplate.expire(key, randomExpiryTime, TimeUnit.SECONDS);
@@ -985,14 +988,8 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
-    /**
-     * 设置一级、及附带的首条二级评论是否被当前用户点赞
-     *
-     * @param commentRspVOS
-     */
     private void setCommentIsLikedData(List<FindCommentItemRspVO> commentRspVOS) {
         Long userId = LoginUserContextHolder.getUserId();
-        // 1. 如果未登录，直接将全部评论的 isLiked 置为 false，并且清洗掉可能被缓存污染的脏数据
         if (Objects.isNull(userId)) {
             for (FindCommentItemRspVO vo : commentRspVOS) {
                 vo.setIsLiked(false);
@@ -1003,7 +1000,6 @@ public class CommentServiceImpl implements CommentService {
             return;
         }
 
-        // 2. 提取当前页所有的评论 ID（包含一级和附带的二级评论）
         List<Long> allCommentIds = Lists.newArrayList();
         for (FindCommentItemRspVO vo : commentRspVOS) {
             allCommentIds.add(vo.getCommentId());
@@ -1013,43 +1009,26 @@ public class CommentServiceImpl implements CommentService {
         }
 
         if (CollUtil.isEmpty(allCommentIds)) return;
-
-        // 3. 去数据库批量查询当前用户点赞过的评论 ID 集合
         List<Long> likedCommentIds = commentLikeDOMapper.selectLikedCommentIds(userId, allCommentIds);
-
-        // 4. 遍历当前页，将匹配的设为 true，不匹配的设为 false
         for (FindCommentItemRspVO vo : commentRspVOS) {
             vo.setIsLiked(likedCommentIds.contains(vo.getCommentId()));
             if (CollUtil.isNotEmpty(vo.getChildComments())) {
-                vo.getChildComments().forEach(c -> c.setIsLiked(likedCommentIds.contains(c.getCommentId())));
+                vo.getChildComments().forEach(c -> vo.setIsLiked(likedCommentIds.contains(c.getCommentId())));
             }
         }
     }
 
-    /**
-     * 设置二级子评论列表是否被当前用户点赞
-     *
-     * @param childCommentRspVOS
-     */
     private void setChildCommentIsLikedData(List<FindChildCommentItemRspVO> childCommentRspVOS) {
         Long userId = LoginUserContextHolder.getUserId();
-        // 1. 未登录，全部设为 false
         if (Objects.isNull(userId)) {
             childCommentRspVOS.forEach(vo -> vo.setIsLiked(false));
             return;
         }
-
-        // 2. 提取子评论 ID
         List<Long> allCommentIds = childCommentRspVOS.stream()
                 .map(FindChildCommentItemRspVO::getCommentId)
                 .collect(Collectors.toList());
-
         if (CollUtil.isEmpty(allCommentIds)) return;
-
-        // 3. 批量查询
         List<Long> likedCommentIds = commentLikeDOMapper.selectLikedCommentIds(userId, allCommentIds);
-
-        // 4. 判断并赋值
         childCommentRspVOS.forEach(vo -> vo.setIsLiked(likedCommentIds.contains(vo.getCommentId())));
     }
 
@@ -1062,9 +1041,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public Response<Boolean> getCommentLikeStatus(CommentLikeStatusDTO vo) {
         int count = commentLikeDOMapper.selectCountByUserIdAndCommentId(vo.getUserId(), vo.getCommentId());
-        if (count > 0) {
-            return Response.success(true);
-        }
+        if (count > 0) return Response.success(true);
         return Response.success(false);
     }
 }

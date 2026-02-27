@@ -23,10 +23,11 @@ public class NoticeItemRspVO {
     private Integer subType; // 细分动作
     private Long targetId; // 笔记 ID 或 评论 ID
     private Long noteId; // 笔记 ID
+    private Long currentId; // 当前用户 ID
 
     @Data
     public static class NoticeUserVO {
-        private Long userId; // 用户 ID
+        private Long userId; // 列表用户 ID
         private String nickname;
         private String avatar;
         private Boolean isAuthor; // 是否为原笔记作者

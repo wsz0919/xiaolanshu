@@ -2,6 +2,8 @@ package com.wsz.xiaolanshu.user.relation.biz.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.RandomUtil;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.wsz.framework.biz.context.holder.LoginUserContextHolder;
 import com.wsz.framework.common.exception.BizException;
 import com.wsz.framework.common.response.PageResponse;
@@ -42,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author: 犬小哈
@@ -70,6 +73,13 @@ public class RelationServiceImpl implements RelationService {
 
     @Resource(name = "taskExecutor")
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+
+    // 定义关注状态本地缓存 (Key: "userId:targetId", Value: StatusInt)
+    private static final Cache<String, Integer> FOLLOW_STATUS_CACHE = Caffeine.newBuilder()
+            .initialCapacity(1000)
+            .maximumSize(10000)
+            .expireAfterWrite(30, TimeUnit.SECONDS) // 缓存 30 秒，兼顾性能和实时性
+            .build();
 
     /**
      * 关注用户
@@ -612,13 +622,20 @@ public class RelationServiceImpl implements RelationService {
     @Override
     public Response<?> checkFollowStatus(FollowUserReqVO followUserReqVO) {
         Long userId = LoginUserContextHolder.getUserId();
+        Long targetUserId = followUserReqVO.getFollowUserId();
+        String cacheKey = userId + ":" + targetUserId;
 
-        long count = followingDOMapper.checkFollowStatus(userId, followUserReqVO.getFollowUserId());
+        // 从缓存获取
+        Integer status = FOLLOW_STATUS_CACHE.get(cacheKey, key -> {
+            long countFollow = followingDOMapper.checkFollowStatus(userId, targetUserId);
+            long countFan = followingDOMapper.checkFollowStatus(targetUserId, userId);
 
-        if (count > 0) {
-            return Response.success(true);
-        }
-        return Response.success(false);
+            if (countFollow > 0 && countFan > 0) return 2;
+            if (countFollow > 0) return 1;
+            return 0;
+        });
+
+        return Response.success(status);
     }
 
     @Override

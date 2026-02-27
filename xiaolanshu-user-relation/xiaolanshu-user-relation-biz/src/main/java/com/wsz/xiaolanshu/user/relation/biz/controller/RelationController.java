@@ -58,7 +58,7 @@ public class RelationController {
     }
 
     @PostMapping("/checkFollowRelation")
-    @ApiOperationLog(description = "查询当前用户与笔记作者是否关注")
+    @ApiOperationLog(description = "查询当前用户与笔记作者是否互相关注")
     public Response<?> isFollowOrUnfollow(@Validated @RequestBody FollowUserReqDTO followUserReqDTO) {
         return relationService.checkFollowStatus(followUserReqDTO);
     }

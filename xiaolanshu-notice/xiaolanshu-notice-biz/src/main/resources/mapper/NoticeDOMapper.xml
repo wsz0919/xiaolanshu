@@ -139,18 +139,17 @@
       from t_notice
       WHERE sender_id = #{senderId}
         AND receiver_id = #{receiverId}
-        AND type = #{type}
+        AND sub_type = #{type}
         AND target_id = #{targetId}
     </select>
 
-    <update id="deleteByBusinessKey">
-    UPDATE t_notice
-    SET is_deleted = 1
+    <delete id="deleteByBusinessKey">
+    delete from t_notice
     WHERE sender_id = #{senderId}
       AND receiver_id = #{receiverId}
-      AND type = #{type}
+      AND sub_type = #{type}
       AND target_id = #{targetId}
-  </update>
+    </delete>
 
   <select id="selectByIds" resultType="com.wsz.xiaolanshu.notice.biz.domain.dataobject.NoticeDO">
     SELECT * FROM t_notice

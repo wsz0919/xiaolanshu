@@ -42,13 +42,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * Description
- *
- * @Author wangshaozhe
- * @Date 2026-02-07 15:08
- * @Company:
- */
 @Component
 @Slf4j
 public class Comment2DBConsumer {
@@ -58,14 +51,13 @@ public class Comment2DBConsumer {
 
     private DefaultMQPushConsumer consumer;
 
-    // 每秒创建 1000 个令牌
     private RateLimiter rateLimiter = RateLimiter.create(1000);
 
     @Resource
     private CommentDOMapper commentDOMapper;
 
     @Resource
-    private NoteCountDOMapper noteCountDOMapper; // 新增注入：用于同步更新笔记评论总数
+    private NoteCountDOMapper noteCountDOMapper;
 
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -90,14 +82,12 @@ public class Comment2DBConsumer {
         consumer.setConsumeMessageBatchMaxSize(30);
 
         consumer.registerMessageListener((MessageListenerConcurrently) (msgs, context) -> {
-            log.info("==> 本批次消息大小: {}", msgs.size());
             try {
                 rateLimiter.acquire();
 
                 List<PublishCommentMqDTO> publishCommentMqDTOS = Lists.newArrayList();
                 msgs.forEach(msg -> {
                     String msgJson = new String(msg.getBody());
-                    log.info("==> Consumer - Received message: {}", msgJson);
                     publishCommentMqDTOS.add(JsonUtils.parseObject(msgJson, PublishCommentMqDTO.class));
                 });
 
@@ -158,7 +148,6 @@ public class Comment2DBConsumer {
                     commentBOS.add(commentBO);
                 }
 
-                // 统计新增评论数，准备同步更新
                 Map<Long, Long> noteIdCountMap = commentBOS.stream()
                         .collect(Collectors.groupingBy(CommentBO::getNoteId, Collectors.counting()));
 
@@ -166,22 +155,19 @@ public class Comment2DBConsumer {
                     try {
                         Integer count = commentDOMapper.batchInsert(commentBOS);
 
-                        List<CommentBO> commentContentNotEmptyBOS = commentBOS.stream()
-                                .filter(bo -> Boolean.FALSE.equals(bo.getIsContentEmpty()))
-                                .toList();
-                        if (CollUtil.isNotEmpty(commentContentNotEmptyBOS)) {
-                            keyValueRpcService.batchSaveCommentContent(commentContentNotEmptyBOS);
+                        List<CommentBO> contentNotEmptyBOS = commentBOS.stream()
+                                .filter(bo -> Boolean.FALSE.equals(bo.getIsContentEmpty())).toList();
+                        if (CollUtil.isNotEmpty(contentNotEmptyBOS)) {
+                            keyValueRpcService.batchSaveCommentContent(contentNotEmptyBOS);
                         }
 
-                        // ================== 【核心修复：同步更新该笔记的评论总数 DB】 ==================
                         for (Map.Entry<Long, Long> entry : noteIdCountMap.entrySet()) {
                             noteCountDOMapper.insertOrUpdateCommentTotalByNoteId(entry.getKey(), entry.getValue().intValue());
                         }
-
                         return count;
                     } catch (Exception ex) {
                         status.setRollbackOnly();
-                        log.error("", ex);
+                        log.error("Batch insert comment error", ex);
                         throw ex;
                     }
                 });
@@ -191,21 +177,18 @@ public class Comment2DBConsumer {
                     updateChildCommentTotal(commentBOS);
                     updateFirstReplyCommentId(commentBOS);
 
-                    // ================== 【核心修复：同步更新 Redis 的 count:note:笔记ID】 ==================
                     for (Map.Entry<Long, Long> entry : noteIdCountMap.entrySet()) {
                         String noteCommentTotalKey = RedisConstants.buildNoteCommentTotalKey(entry.getKey());
                         if (Boolean.TRUE.equals(redisTemplate.hasKey(noteCommentTotalKey))) {
                             redisTemplate.opsForHash().increment(noteCommentTotalKey, RedisConstants.FIELD_COMMENT_TOTAL, entry.getValue().intValue());
                         }
                     }
-
                     deleteTwoLevelCommentRedisCache(commentBOS);
-                    // 注意：这里已经彻底移除了往 TOPIC_COUNT_NOTE_COMMENT 发消息的代码，杜绝双重计数！
                 }
 
                 return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
             } catch (Exception e) {
-                log.error("", e);
+                log.error("Consume comment message failed", e);
                 return ConsumeConcurrentlyStatus.RECONSUME_LATER;
             }
         });
@@ -217,11 +200,7 @@ public class Comment2DBConsumer {
     @PreDestroy
     public void destroy() {
         if (Objects.nonNull(consumer)) {
-            try {
-                consumer.shutdown();
-            } catch (Exception e) {
-                log.error("", e);
-            }
+            try { consumer.shutdown(); } catch (Exception e) { log.error("Shutdown consumer error", e); }
         }
     }
 
@@ -235,7 +214,6 @@ public class Comment2DBConsumer {
         for (Map.Entry<Long, Long> entry : parentCountMap.entrySet()) {
             Long parentId = entry.getKey();
             int count = entry.getValue().intValue();
-
             commentDOMapper.updateChildCommentTotalById(parentId, count);
 
             String redisKey = RedisConstants.buildCountCommentKey(parentId);
@@ -248,110 +226,78 @@ public class Comment2DBConsumer {
     private void updateFirstReplyCommentId(List<CommentBO> commentBOS) {
         List<Long> parentIds = commentBOS.stream()
                 .filter(commentBO -> Objects.equals(commentBO.getLevel(), CommentLevelEnum.TWO.getCode()))
-                .map(CommentBO::getParentId)
-                .distinct()
-                .toList();
+                .map(CommentBO::getParentId).distinct().toList();
 
         if (CollUtil.isEmpty(parentIds)) return;
 
-        List<String> keys = parentIds.stream()
-                .map(RedisConstants::buildHaveFirstReplyCommentKey)
-                .toList();
-
+        List<String> keys = parentIds.stream().map(RedisConstants::buildHaveFirstReplyCommentKey).toList();
         List<Object> values = redisTemplate.opsForValue().multiGet(keys);
 
         List<Long> missingCommentIds = Lists.newArrayList();
         for (int i = 0; i < values.size(); i++) {
-            if (Objects.isNull(values.get(i))) {
-                missingCommentIds.add(parentIds.get(i));
-            }
+            if (Objects.isNull(values.get(i))) missingCommentIds.add(parentIds.get(i));
         }
 
         if (CollUtil.isNotEmpty(missingCommentIds)) {
             List<CommentDO> commentDOS = commentDOMapper.selectByCommentIds(missingCommentIds);
-            List<CommentDO> needUpdateCommentDOS = commentDOS.stream()
-                    .filter(commentDO -> commentDO.getFirstReplyCommentId() == 0)
-                    .toList();
+            List<CommentDO> needUpdateDOS = commentDOS.stream().filter(doObj -> doObj.getFirstReplyCommentId() == 0).toList();
 
-            for (CommentDO needUpdateCommentDO : needUpdateCommentDOS) {
-                Long parentId = needUpdateCommentDO.getId();
-                CommentDO earliestCommentDO = commentDOMapper.selectEarliestByParentId(parentId);
-                if (Objects.nonNull(earliestCommentDO)) {
-                    Long earliestCommentId = earliestCommentDO.getId();
-                    commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliestCommentId, parentId);
-                    redisTemplate.opsForValue().set(
-                            RedisConstants.buildHaveFirstReplyCommentKey(parentId),
-                            1,
-                            RandomUtil.randomInt(5 * 60 * 60),
-                            TimeUnit.SECONDS
-                    );
+            for (CommentDO needUpdateDO : needUpdateDOS) {
+                Long parentId = needUpdateDO.getId();
+                CommentDO earliest = commentDOMapper.selectEarliestByParentId(parentId);
+                if (Objects.nonNull(earliest)) {
+                    commentDOMapper.updateFirstReplyCommentIdByPrimaryKey(earliest.getId(), parentId);
+                    redisTemplate.opsForValue().set(RedisConstants.buildHaveFirstReplyCommentKey(parentId), "1",
+                            RandomUtil.randomInt(5 * 60 * 60), TimeUnit.SECONDS);
                 }
-            }
-
-            List<Long> alreadyHasIds = commentDOS.stream()
-                    .filter(commentDO -> commentDO.getFirstReplyCommentId() != 0)
-                    .map(CommentDO::getId)
-                    .toList();
-
-            if (CollUtil.isNotEmpty(alreadyHasIds)) {
-                redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-                    alreadyHasIds.forEach(id -> {
-                        byte[] keyBytes = redisTemplate.getStringSerializer().serialize(RedisConstants.buildHaveFirstReplyCommentKey(id));
-                        byte[] valueBytes = redisTemplate.getStringSerializer().serialize("1");
-                        connection.setEx(keyBytes, RandomUtil.randomInt(5 * 60 * 60), valueBytes);
-                    });
-                    return null;
-                });
             }
         }
     }
 
     private void syncOneLevelComment2RedisZSet(List<CommentBO> commentBOS) {
-        Map<Long, List<CommentBO>> commentIdAndBOListMap = commentBOS.stream()
-                .filter(commentBO -> Objects.equals(commentBO.getLevel(), CommentLevelEnum.ONE.getCode()))
+        Map<Long, List<CommentBO>> noteIdGroupMap = commentBOS.stream()
+                .filter(bo -> Objects.equals(bo.getLevel(), CommentLevelEnum.ONE.getCode()))
                 .collect(Collectors.groupingBy(CommentBO::getNoteId));
 
-        commentIdAndBOListMap.forEach((noteId, commentBOList) -> {
+        noteIdGroupMap.forEach((noteId, boList) -> {
             String key = RedisConstants.buildCommentListKey(noteId);
             DefaultRedisScript<Long> script = new DefaultRedisScript<>();
             script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/add_hot_comments.lua")));
             script.setResultType(Long.class);
 
-            List<Object> args = Lists.newArrayList();
-            commentBOList.forEach(commentBO -> {
-                args.add(commentBO.getId());
-                args.add(0);
+            // ================== 【核心修复：手动将参数转为 String 类型】 ==================
+            List<String> args = Lists.newArrayList();
+            boList.forEach(bo -> {
+                args.add(String.valueOf(bo.getId())); // 关键：转 String
+                args.add("0");                        // 关键：转 String
             });
-            redisTemplate.execute(script, Collections.singletonList(key), args.toArray());
+
+            try {
+                redisTemplate.execute(script, Collections.singletonList(key), args.toArray());
+            } catch (Exception e) {
+                log.error("## Sync hot comments to redis error, noteId: {}", noteId, e);
+            }
         });
     }
 
     private void deleteTwoLevelCommentRedisCache(List<CommentBO> commentBOS) {
         List<CommentBO> twoLevelComments = commentBOS.stream()
-                .filter(commentBO -> Objects.equals(commentBO.getLevel(), CommentLevelEnum.TWO.getCode()))
-                .toList();
+                .filter(bo -> Objects.equals(bo.getLevel(), CommentLevelEnum.TWO.getCode())).toList();
 
         if (CollUtil.isNotEmpty(twoLevelComments)) {
-            Set<Long> parentCommentIds = twoLevelComments.stream()
-                    .map(CommentBO::getParentId)
-                    .collect(Collectors.toSet());
+            Set<Long> parentCommentIds = twoLevelComments.stream().map(CommentBO::getParentId).collect(Collectors.toSet());
 
-            redisTemplate.delete(parentCommentIds.stream()
-                    .map(RedisConstants::buildChildCommentListKey)
-                    .collect(Collectors.toList()));
+            List<String> keysToDelete = Lists.newArrayList();
+            parentCommentIds.forEach(pid -> {
+                keysToDelete.add(RedisConstants.buildChildCommentListKey(pid));
+                keysToDelete.add(RedisConstants.buildCommentDetailKey(pid));
 
-            redisTemplate.delete(parentCommentIds.stream()
-                    .map(RedisConstants::buildCommentDetailKey)
-                    .collect(Collectors.toList()));
-
-            parentCommentIds.forEach(parentId -> {
-                rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, parentId, new SendCallback() {
-                    @Override
-                    public void onSuccess(SendResult sendResult) {}
-                    @Override
-                    public void onException(Throwable throwable) {}
+                rocketMQTemplate.asyncSend(MQConstants.TOPIC_DELETE_COMMENT_LOCAL_CACHE, pid, new SendCallback() {
+                    @Override public void onSuccess(SendResult res) {}
+                    @Override public void onException(Throwable ex) {}
                 });
             });
+            redisTemplate.delete(keysToDelete);
         }
     }
 }

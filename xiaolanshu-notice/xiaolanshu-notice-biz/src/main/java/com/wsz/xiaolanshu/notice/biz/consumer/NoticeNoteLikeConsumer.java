@@ -66,10 +66,10 @@ public class NoticeNoteLikeConsumer implements RocketMQListener<String> {
 
         } else { // 0-取消点赞
             // 先查出之前那条通知的 ID (为了从 Redis 删它)
-            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), type, dto.getNoteId());
+            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), 11, dto.getNoteId());
             if (noticeId != null) {
                 // 删库并删缓存
-                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), type, dto.getNoteId());
+                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), 11, dto.getNoteId());
                 redisTemplate.opsForZSet().remove(redisKey, String.valueOf(noticeId));
             }
         }

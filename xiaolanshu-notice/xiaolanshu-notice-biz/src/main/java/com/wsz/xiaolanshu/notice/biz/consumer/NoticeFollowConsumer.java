@@ -63,9 +63,9 @@ public class NoticeFollowConsumer implements RocketMQListener<MessageExt> {
             redisTemplate.opsForZSet().removeRange(redisKey, 0, -501);
 
         } else if (MQConstants.TAG_UNFOLLOW.equals(tags)) { // 取消关注
-            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getUnfollowUserId(), type, 0L);
+            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUnfollowUserId(), dto.getUserId(), 21, 0L);
             if (noticeId != null) {
-                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getUnfollowUserId(), type, 0L);
+                noticeDOMapper.deleteByBusinessKey(dto.getUnfollowUserId(), dto.getUserId(), 21, 0L);
                 redisTemplate.opsForZSet().remove(redisKey, String.valueOf(noticeId));
             }
         }

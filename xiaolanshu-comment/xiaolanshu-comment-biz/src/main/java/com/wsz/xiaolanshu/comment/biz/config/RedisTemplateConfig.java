@@ -1,18 +1,13 @@
-package com.wsz.xiaolanshu.comment.biz.config;
+package com.wsz.xiaolanshu.comment.biz.config; // 注意：notice 模块请修改对应的 package
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * Description
- *
- * @Author wangshaozhe
- * @Date 2026-02-09 14:17
- * @Company:
+ * 修改后的 Redis 配置
  */
 @Configuration
 public class RedisTemplateConfig {
@@ -23,14 +18,16 @@ public class RedisTemplateConfig {
         // 设置 RedisTemplate 的连接工厂
         redisTemplate.setConnectionFactory(connectionFactory);
 
-        // 使用 StringRedisSerializer 来序列化和反序列化 redis 的 key 值，确保 key 是可读的字符串
-        redisTemplate.setKeySerializer(new StringRedisSerializer());
-        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        // 1. Key 序列化：使用 StringRedisSerializer，确保 key 在工具中可见
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        redisTemplate.setKeySerializer(stringSerializer);
+        redisTemplate.setHashKeySerializer(stringSerializer);
 
-        // 使用 Jackson2JsonRedisSerializer 来序列化和反序列化 redis 的 value 值, 确保存储的是 JSON 格式
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(Object.class);
-        redisTemplate.setValueSerializer(serializer);
-        redisTemplate.setHashValueSerializer(serializer);
+        // 2. Value 序列化：改为 StringRedisSerializer [修改点]
+        // 这样 redisTemplate.opsForValue().get() 返回的就是 JSON 字符串，
+        // 从而匹配 CommentServiceImpl 中强转 (String) 的逻辑。
+        redisTemplate.setValueSerializer(stringSerializer);
+        redisTemplate.setHashValueSerializer(stringSerializer);
 
         redisTemplate.afterPropertiesSet();
         return redisTemplate;

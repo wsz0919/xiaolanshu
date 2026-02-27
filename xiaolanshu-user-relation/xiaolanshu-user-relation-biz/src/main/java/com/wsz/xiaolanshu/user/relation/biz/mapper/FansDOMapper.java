@@ -46,4 +46,6 @@ public interface FansDOMapper {
      * @return
      */
     List<FansDO> select5000FansByUserId(Long userId);
+
+    long checkFollowStatus(@Param("userId") Long userId, @Param("fansUserId") Long fansUserId);
 }

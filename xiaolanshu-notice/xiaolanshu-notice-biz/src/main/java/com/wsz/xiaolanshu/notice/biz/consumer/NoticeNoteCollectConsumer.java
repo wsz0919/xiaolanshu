@@ -62,9 +62,9 @@ public class NoticeNoteCollectConsumer implements RocketMQListener<String> {
             redisTemplate.opsForZSet().removeRange(redisKey, 0, -501);
 
         } else { // 0-取消收藏
-            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), type, dto.getNoteId());
+            Long noticeId = noticeDOMapper.selectNoticeIdByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), 12, dto.getNoteId());
             if (noticeId != null) {
-                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), type, dto.getNoteId());
+                noticeDOMapper.deleteByBusinessKey(dto.getUserId(), dto.getNoteCreatorId(), 12, dto.getNoteId());
                 redisTemplate.opsForZSet().remove(redisKey, String.valueOf(noticeId));
             }
         }
