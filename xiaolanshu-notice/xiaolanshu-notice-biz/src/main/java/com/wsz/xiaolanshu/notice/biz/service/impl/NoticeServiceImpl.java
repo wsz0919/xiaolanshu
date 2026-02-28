@@ -139,7 +139,6 @@ public class NoticeServiceImpl implements NoticeService {
             FindCommentByIdRspDTO c = commentMap.get(n.getTargetId());
             if (c != null) {
                 noteIdsToFetch.add(c.getNoteId());
-                if (c.getReplyCommentId() != null) { /* 记录需要父评论的逻辑 */ }
             }
         }
 
@@ -180,23 +179,29 @@ public class NoticeServiceImpl implements NoticeService {
                 item.setType("like");
                 Long noteId = notice.getTargetId();
                 if (notice.getSubType() == 13) {
+                    item.setCommentId(notice.getTargetId()); // 【关键赋值】：赞了这条评论的ID
                     FindCommentByIdRspDTO comment = commentMap.get(notice.getTargetId());
                     if (comment != null) {
                         noteId = comment.getNoteId();
                         item.setQuoteText(fetchKVContent(comment, notice.getCreateTime())); // KV 查询建议保留
                     }
                 }
+                item.setNoteId(noteId); // 【关键赋值】：不管是赞笔记还是赞评论，都统一提供 noteId 给前端
                 fillNoteCover(item, noteMap.get(noteId));
+
             } else if (type == 2) {
                 item.setType("follow");
                 item.setIsMutual(followMap.getOrDefault(notice.getSenderId(), false));
+
             } else if (type == 3) {
                 item.setType("reply");
+                item.setCommentId(notice.getTargetId()); // 【关键赋值】：31/32/33 这里存的就是触发通知的评论ID
+
                 FindCommentByIdRspDTO comment = commentMap.get(notice.getTargetId());
                 if (comment != null) {
                     item.setContent(fetchKVContent(comment, notice.getCreateTime()));
                     item.setTargetId(notice.getTargetId());
-                    item.setNoteId(comment.getNoteId());
+                    item.setNoteId(comment.getNoteId()); // 设置 noteId 用于跳转
                     FindNoteDetailRspDTO note = noteMap.get(comment.getNoteId());
                     if (note != null) {
                         fillNoteCover(item, note);
@@ -289,11 +294,17 @@ public class NoticeServiceImpl implements NoticeService {
     }
 
     private void fillNoteCover(NoticeItemRspVO item, FindNoteDetailRspDTO note) {
-        if (note != null && StringUtils.isNotBlank(String.valueOf(note.getImgUris()))) {
+
+        if (note == null) {
+            return;
+        }
+
+        String image = String.valueOf(note.getImgUris());
+        if (!"null".equals(image) && StringUtils.isNotBlank(image)) {
             String cover = String.valueOf(note.getImgUris());
-            if (!"null".equals(cover)) {
-                item.setCover(cover.split(",")[0]);
-            }
+            item.setCover(cover.split(",")[0]);
+        } if (StringUtils.isNotBlank(note.getVideoUri())) {
+            item.setCover(note.getVideoUri());
         }
     }
 
@@ -313,6 +324,7 @@ public class NoticeServiceImpl implements NoticeService {
             case 21 -> "开始关注你了";
             case 31 -> "评论了你的笔记";
             case 32 -> "回复了你的评论";
+            case 33 -> "在评论中@了你";
             default -> "与你产生了互动";
         };
     }

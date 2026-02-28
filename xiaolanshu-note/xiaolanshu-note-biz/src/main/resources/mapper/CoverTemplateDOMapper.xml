@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wsz.xiaolanshu.note.biz.mapper.CoverTemplateDOMapper">
+    <select id="selectById" resultType="com.wsz.xiaolanshu.note.biz.domain.dataobject.CoverTemplateDO">
+        SELECT id, name, img_url AS imgUrl, font_size AS fontSize,
+        font_color AS fontColor, week_x AS weekX, week_y AS weekY,
+        date_x AS dateX, date_y AS dateY, title_y AS titleY
+        FROM t_cover_template
+        WHERE id = #{id} AND status = 1 AND is_deleted = 0
+    </select>
+    <select id="selectAllEnabled" resultType="com.wsz.xiaolanshu.note.biz.domain.dataobject.CoverTemplateDO">
+        SELECT id, name, img_url as imgUrl
+        FROM t_cover_template
+        WHERE status = 1 AND is_deleted = 0
+    </select>
+</mapper>

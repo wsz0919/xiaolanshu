@@ -105,5 +105,21 @@
     from t_following
     where user_id = #{userId} and following_user_id = #{followUserId}
   </select>
-
+  <select id="selectMentionIds" resultType="java.lang.Long">
+    SELECT
+    f.following_user_id
+    FROM
+    t_following f
+    <if test="query != null and query != ''">
+      INNER JOIN t_user u ON f.following_user_id = u.id
+    </if>
+    WHERE
+    f.user_id = #{userId}
+    <if test="query != null and query != ''">
+      AND u.nick_name LIKE CONCAT('%', #{query}, '%')
+    </if>
+    ORDER BY
+    f.create_time ASC
+    LIMIT #{limit}
+  </select>
 </mapper>

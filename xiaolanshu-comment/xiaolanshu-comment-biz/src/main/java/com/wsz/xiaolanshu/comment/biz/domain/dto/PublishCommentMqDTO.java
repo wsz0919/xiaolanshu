@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Description
@@ -53,5 +54,10 @@ public class PublishCommentMqDTO {
     private Long commentId;
 
     private Long replyUserId;
+
+    /**
+     * 透传被 @ 的用户 ID 集合
+     */
+    private List<Long> mentionUserIds;
 
 }

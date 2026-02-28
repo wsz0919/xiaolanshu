@@ -5,6 +5,8 @@ import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.relation.biz.domain.dto.FollowUserReqDTO;
 import com.wsz.xiaolanshu.user.relation.biz.domain.vo.*;
 
+import java.util.List;
+
 /**
  * Description
  *
@@ -55,4 +57,11 @@ public interface RelationService {
      * @return
      */
     Response<?> checkFollowStatus(FollowUserReqDTO followUserReqDTO);
+
+    /**
+     * @ @某用户所展开的列表
+     * @param query
+     * @return
+     */
+    Response<List<MentionUserRspVO>> findMentionUserList(String query);
 }

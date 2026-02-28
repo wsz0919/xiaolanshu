@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * Description
  *
@@ -41,5 +43,10 @@ public class PublishCommentReqVO {
      * 回复的哪个用户（被回复人的用户 ID）
      */
     private Long replyUserId;
+
+    /**
+     * 被 @ 的用户 ID 集合
+      */
+    private List<Long> mentionUserIds;
 
 }

@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.count.biz.service.impl;
 
 import cn.hutool.core.util.RandomUtil;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import com.google.common.collect.Maps;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.count.biz.constant.RedisConstants;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 @Slf4j
+@SentinelResource("findUserCountData")
 public class UserCountServiceImpl implements UserCountService {
 
     @Resource

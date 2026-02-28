@@ -34,6 +34,9 @@ public enum ResponseCodeEnum implements BaseExceptionInterface {
     CHANNEL_NOT_FOUND("NOTE-20012", "频道不存在"),
     CANT_LIKE_OWN_NOTE("NOTE-20013", "不能给自己的笔记点赞"),
     CANT_COLLECT_OWN_NOTE("NOTE-20014", "不能收藏自己的笔记"),
+    UPLOAD_IMAGE_ERROR("NOTE-20015", "上传合成图片失败"),
+    THE_TEMPLATE_DOES_NOT_EXIST("NOTE-20016", "模板不存在"),
+    THE_SYSTEM_IS_BUSY_AND_THE_COVER_GENERATION_FAILED("NOTE-20017", "系统繁忙，封面生成失败"),
     ;
 
     // 异常码

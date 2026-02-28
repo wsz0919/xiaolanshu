@@ -24,6 +24,7 @@ public class NoticeItemRspVO {
     private Long targetId; // 笔记 ID 或 评论 ID
     private Long noteId; // 笔记 ID
     private Long currentId; // 当前用户 ID
+    private Long commentId;
 
     @Data
     public static class NoticeUserVO {

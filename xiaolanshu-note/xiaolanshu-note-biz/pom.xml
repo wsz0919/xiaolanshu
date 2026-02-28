@@ -133,6 +133,11 @@
             <artifactId>mapstruct</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-oss-api</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

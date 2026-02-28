@@ -27,6 +27,7 @@ import com.wsz.xiaolanshu.user.relation.biz.rpc.UserRpcService;
 import com.wsz.xiaolanshu.user.relation.biz.service.RelationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.producer.SendCallback;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -38,13 +39,12 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author: 犬小哈
@@ -78,7 +78,14 @@ public class RelationServiceImpl implements RelationService {
     private static final Cache<String, Integer> FOLLOW_STATUS_CACHE = Caffeine.newBuilder()
             .initialCapacity(1000)
             .maximumSize(10000)
-            .expireAfterWrite(30, TimeUnit.SECONDS) // 缓存 30 秒，兼顾性能和实时性
+            .expireAfterWrite(10, TimeUnit.SECONDS) // 缓存 30 秒，兼顾性能和实时性
+            .build();
+
+    // Key 是当前操作者 userId，Value 是他关注的所有用户基础信息
+    private static final Cache<Long, List<MentionUserRspVO>> MENTION_CACHE = Caffeine.newBuilder()
+            .initialCapacity(100)
+            .maximumSize(1000)
+            .expireAfterWrite(5, TimeUnit.MINUTES) // 缓存5分钟
             .build();
 
     /**
@@ -646,5 +653,38 @@ public class RelationServiceImpl implements RelationService {
             return Response.success(true);
         }
         return Response.success(false);
+    }
+
+    @Override
+    public Response<List<MentionUserRspVO>> findMentionUserList(String query) {
+        Long userId = LoginUserContextHolder.getUserId();
+
+        // 1. 获取该用户关注的所有用户（不带搜索条件，用于本地缓存）
+        List<MentionUserRspVO> allFollowings = MENTION_CACHE.get(userId, k -> {
+            // SQL 查出前 500 个关注者（避免一个人关注太多导致内存溢出，小红书这类通常也只显示最近关注）
+            List<Long> ids = followingDOMapper.selectMentionIds(userId, null, 500);
+            if (CollectionUtils.isEmpty(ids)) return Collections.emptyList();
+
+            // 批量查询用户信息
+            List<FindUserByIdRspDTO> users = userRpcService.findByIds(ids);
+            return users.stream().map(u -> MentionUserRspVO.builder()
+                    .userId(u.getId())
+                    .nickname(u.getNickName())
+                    .avatar(u.getAvatar())
+                    .build()).collect(Collectors.toList());
+        });
+
+        // 2. 在内存中进行过滤（响应速度极快）
+        if (StringUtils.isBlank(query)) {
+            // 如果没有输入，直接取前 30 个
+            return Response.success(allFollowings.stream().limit(30).collect(Collectors.toList()));
+        } else {
+            // 模糊匹配昵称
+            List<MentionUserRspVO> filtered = allFollowings.stream()
+                    .filter(u -> u.getNickname().contains(query))
+                    .limit(30)
+                    .collect(Collectors.toList());
+            return Response.success(filtered);
+        }
     }
 }

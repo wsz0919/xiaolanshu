@@ -51,4 +51,14 @@ public interface FollowingDOMapper {
 
     long checkFollowStatus(@Param("userId") Long userId, @Param("followUserId") Long followUserId);
 
+    /**
+     * 获取提到用户列表的 ID 集合
+     * @param userId 当前用户ID
+     * @param query 搜索关键词（可为空）
+     * @param limit 限制数量（30）
+     * @return 关注的用户ID列表
+     */
+    List<Long> selectMentionIds(@Param("userId") Long userId,
+                                @Param("query") String query,
+                                @Param("limit") Integer limit);
 }

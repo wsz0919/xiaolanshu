@@ -131,6 +131,7 @@ public class CommentServiceImpl implements CommentService {
                 .imageUrl(imageUrl)
                 .replyUserId(publishCommentReqVO.getReplyUserId())
                 .replyCommentId(publishCommentReqVO.getReplyCommentId())
+                .mentionUserIds(publishCommentReqVO.getMentionUserIds())
                 .createTime(LocalDateTime.now())
                 .creatorId(creatorId)
                 .build();

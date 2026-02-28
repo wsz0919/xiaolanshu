@@ -13,6 +13,8 @@ import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
 import com.wsz.framework.common.response.Response;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Description
  *
@@ -61,5 +63,17 @@ public class RelationController {
     @ApiOperationLog(description = "查询当前用户与笔记作者是否互相关注")
     public Response<?> isFollowOrUnfollow(@Validated @RequestBody FollowUserReqDTO followUserReqDTO) {
         return relationService.checkFollowStatus(followUserReqDTO);
+    }
+
+    /**
+     * 获取 @ 提到用户列表
+     * 支持初始显示（关注的前30名）和 模糊搜索
+     * @param reqVO
+     * @return
+     */
+    @PostMapping("/mention/list")
+    @ApiOperationLog(description = "获取提到用户列表")
+    public Response<List<MentionUserRspVO>> findMentionUserList(@RequestBody FindMentionUserReqVO reqVO) {
+        return relationService.findMentionUserList(reqVO.getQuery());
     }
 }
