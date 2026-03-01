@@ -70,6 +70,23 @@ public class RedisConstants {
     public static final String FIELD_COMMENT_TOTAL = "commentTotal";
 
     /**
+     * 封面模版列表 KEY
+     */
+    public static final String COVER_TEMPLATE_LIST_KEY = "cover:templates";
+
+    /**
+     * 封面模版详情 KEY 前缀
+     */
+    public static final String COVER_TEMPLATE_DETAIL_KEY = "cover:template:";
+
+    /**
+     * 构建封面模版详情 KEY
+     */
+    public static String buildCoverTemplateDetailKey(Long templateId) {
+        return COVER_TEMPLATE_DETAIL_KEY + templateId;
+    }
+
+    /**
      * 构建完整的笔记计数 KEY
      * @param noteId
      * @return

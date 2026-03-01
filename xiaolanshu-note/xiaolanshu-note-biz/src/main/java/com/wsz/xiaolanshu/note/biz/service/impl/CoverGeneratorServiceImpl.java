@@ -1,7 +1,11 @@
 package com.wsz.xiaolanshu.note.biz.service.impl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.wsz.framework.common.exception.BizException;
 import com.wsz.framework.common.response.Response;
+import com.wsz.framework.common.util.JsonUtils;
+import com.wsz.xiaolanshu.note.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.note.biz.domain.dataobject.CoverTemplateDO;
 import com.wsz.xiaolanshu.note.biz.enums.ResponseCodeEnum;
 import com.wsz.xiaolanshu.note.biz.mapper.CoverTemplateDOMapper;
@@ -10,6 +14,7 @@ import com.wsz.xiaolanshu.oss.api.FileFeignApi;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,6 +25,7 @@ import java.io.*;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 笔记封面生成实现类
@@ -34,9 +40,45 @@ public class CoverGeneratorServiceImpl implements CoverGeneratorService {
     @Resource
     private FileFeignApi fileFeignApi;
 
+    @Resource
+    private RedisTemplate<String, String> redisTemplate;
+
+    // 1. 初始化 Caffeine 本地缓存 (过期时间 5 分钟)
+    private static final Cache<String, List<CoverTemplateDO>> TEMPLATE_LIST_LOCAL_CACHE = Caffeine.newBuilder()
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .maximumSize(1)
+            .build();
+
+    private static final Cache<Long, CoverTemplateDO> TEMPLATE_DETAIL_LOCAL_CACHE = Caffeine.newBuilder()
+            .expireAfterWrite(30, TimeUnit.MINUTES)
+            .maximumSize(100)
+            .build();
+
     @Override
     public List<CoverTemplateDO> getTemplateList() {
-        return coverTemplateDOMapper.selectAllEnabled();
+        // 1.1 查询 Caffeine
+        List<CoverTemplateDO> list = TEMPLATE_LIST_LOCAL_CACHE.getIfPresent(RedisConstants.COVER_TEMPLATE_LIST_KEY);
+        if (list != null) return list;
+
+        // 1.2 查询 Redis
+        String json = redisTemplate.opsForValue().get(RedisConstants.COVER_TEMPLATE_LIST_KEY);
+        if (StringUtils.isNotBlank(json)) {
+            try {
+                list = JsonUtils.parseList(json, CoverTemplateDO.class);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            TEMPLATE_LIST_LOCAL_CACHE.put(RedisConstants.COVER_TEMPLATE_LIST_KEY, list);
+            return list;
+        }
+
+        // 1.3 查询数据库并回写
+        list = coverTemplateDOMapper.selectAllEnabled();
+        if (list != null) {
+            redisTemplate.opsForValue().set(RedisConstants.COVER_TEMPLATE_LIST_KEY, JsonUtils.toJsonString(list), 1, TimeUnit.HOURS);
+            TEMPLATE_LIST_LOCAL_CACHE.put(RedisConstants.COVER_TEMPLATE_LIST_KEY, list);
+        }
+        return list;
     }
 
     @Override
@@ -47,8 +89,11 @@ public class CoverGeneratorServiceImpl implements CoverGeneratorService {
             return Response.fail("标题不能为空");
         }
 
-        CoverTemplateDO template = coverTemplateDOMapper.selectById(templateId);
-        if (template == null) throw new BizException(ResponseCodeEnum.THE_TEMPLATE_DOES_NOT_EXIST);
+        // 2. 获取模版详情（使用多级缓存）
+        CoverTemplateDO template = getTemplateDetail(templateId);
+        if (template == null) {
+            throw new BizException(ResponseCodeEnum.THE_TEMPLATE_DOES_NOT_EXIST);
+        }
 
         try {
             // 1. 下载并读取底图
@@ -115,6 +160,32 @@ public class CoverGeneratorServiceImpl implements CoverGeneratorService {
             log.error("封面合成异常: ", e);
             throw new BizException(ResponseCodeEnum.THE_SYSTEM_IS_BUSY_AND_THE_COVER_GENERATION_FAILED);
         }
+    }
+
+    /**
+     * 获取单个模版详情的多级缓存逻辑
+     */
+    private CoverTemplateDO getTemplateDetail(Long templateId) {
+        // 优先本地缓存
+        CoverTemplateDO template = TEMPLATE_DETAIL_LOCAL_CACHE.getIfPresent(templateId);
+        if (template != null) return template;
+
+        // 其次 Redis
+        String key = RedisConstants.buildCoverTemplateDetailKey(templateId);
+        String json = redisTemplate.opsForValue().get(key);
+        if (StringUtils.isNotBlank(json)) {
+            template = JsonUtils.parseObject(json, CoverTemplateDO.class);
+            TEMPLATE_DETAIL_LOCAL_CACHE.put(templateId, template);
+            return template;
+        }
+
+        // 最后数据库
+        template = coverTemplateDOMapper.selectById(templateId);
+        if (template != null) {
+            redisTemplate.opsForValue().set(key, JsonUtils.toJsonString(template), 2, TimeUnit.HOURS);
+            TEMPLATE_DETAIL_LOCAL_CACHE.put(templateId, template);
+        }
+        return template;
     }
 
     private void drawWrappedText(Graphics2D g2d, String text, int imgWidth, int startY, int maxWidth) {
