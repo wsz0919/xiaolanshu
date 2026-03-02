@@ -20,6 +20,20 @@ public class RedisConstants {
     private static final String USER_FANS_KEY_PREFIX = "fans:";
 
     /**
+     * 提到的用户列表缓存 KEY 前缀
+     */
+    private static final String MENTION_LIST_KEY_PREFIX = "mention:list:";
+
+    /**
+     * 构建屠刀的用户列表完整的 KEY
+     * @param userId
+     * @return
+     */
+    public static String buildMentionListKey(Long userId) {
+        return MENTION_LIST_KEY_PREFIX + userId;
+    }
+
+    /**
      * 构建关注列表完整的 KEY
      * @param userId
      * @return

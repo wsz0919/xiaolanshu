@@ -36,4 +36,9 @@ public class UpdateNoteReqVO {
     private String content;
 
     private Long topicId;
+
+    /**
+     * 支持用户添加多话题
+     */
+    private List<Object> topics;
 }

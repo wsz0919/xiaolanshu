@@ -249,9 +249,8 @@
     update t_note
     set title = #{title,jdbcType=VARCHAR},
         is_content_empty = #{isContentEmpty,jdbcType=BIT},
-        topic_id = #{topicId,jdbcType=BIGINT},
-        topic_name = #{topicName,jdbcType=VARCHAR},
         `type` = #{type,jdbcType=TINYINT},
+        topic_ids = #{topicIds,jdbcType=VARCHAR},
         img_uris = #{imgUris,jdbcType=VARCHAR},
         video_uri = #{videoUri,jdbcType=VARCHAR},
         update_time = #{updateTime,jdbcType=TIMESTAMP}

@@ -69,4 +69,8 @@ public class FindNoteDetailRspVO {
      */
     private String commentTotal;
 
+    /**
+     * 频道ID
+     */
+    private Long channelId;
 }

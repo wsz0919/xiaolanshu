@@ -67,4 +67,7 @@ public interface UserFeignApi {
      */
     @PostMapping(value = PREFIX + "/findByIds")
     Response<List<FindUserByIdRspDTO>> findByIds(@RequestBody FindUsersByIdsReqDTO findUsersByIdsReqDTO);
+
+    @PostMapping(value = PREFIX + "/findTopUsers")
+    Response<List<FindUserByIdRspDTO>> findTopUsers(@RequestBody FindUserTopReqVO vo);
 }

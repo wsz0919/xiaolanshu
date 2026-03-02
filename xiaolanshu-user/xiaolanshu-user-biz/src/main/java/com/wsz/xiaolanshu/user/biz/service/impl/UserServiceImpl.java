@@ -24,6 +24,7 @@ import com.wsz.xiaolanshu.user.biz.domain.dataobject.UserDO;
 import com.wsz.xiaolanshu.user.biz.domain.dataobject.UserRoleDO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileRspVO;
+import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserTopReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.UpdateUserInfoReqVO;
 import com.wsz.xiaolanshu.user.biz.enums.ResponseCodeEnum;
 import com.wsz.xiaolanshu.user.biz.enums.SexEnum;
@@ -690,4 +691,12 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 查询最新注册/活跃的用户
+     */
+    @Override
+    public Response<List<FindUserByIdRspDTO>> findTopUsers(FindUserTopReqVO vo) {
+        List<FindUserByIdRspDTO> userDOS = userDOMapper.selectTopUsers(vo.getLimit());
+        return Response.success(userDOS);
+    }
 }

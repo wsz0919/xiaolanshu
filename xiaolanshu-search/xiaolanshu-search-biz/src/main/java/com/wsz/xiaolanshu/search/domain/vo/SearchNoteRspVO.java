@@ -31,6 +31,11 @@ public class SearchNoteRspVO {
     private String cover;
 
     /**
+     * 视频
+     */
+    private String videoUri;
+
+    /**
      * 标题
      */
     private String title;

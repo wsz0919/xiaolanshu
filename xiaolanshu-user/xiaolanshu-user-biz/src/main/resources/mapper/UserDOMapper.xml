@@ -214,4 +214,13 @@
     where xiaolanshu_id = #{xiaolanshuId}
       limit 1
   </select>
+
+  <select id="selectTopUsers" resultType="com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO">
+    SELECT id, nickname as nickName, avatar, introduction
+    FROM t_user
+    ORDER BY create_time DESC
+      LIMIT #{limit}
+  </select>
+
+
 </mapper>

@@ -1,12 +1,16 @@
 package com.wsz.xiaolanshu.search.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.collect.Lists;
 import com.wsz.framework.common.constant.DateConstants;
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
 import com.wsz.framework.common.util.DateUtils;
+import com.wsz.framework.common.util.JsonUtils;
 import com.wsz.framework.common.util.NumberUtils;
+import com.wsz.xiaolanshu.search.constant.RedisConstants;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteReqVO;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteRspVO;
 import com.wsz.xiaolanshu.search.dto.RebuildNoteDocumentReqDTO;
@@ -27,7 +31,6 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -37,6 +40,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -44,13 +48,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Description
- *
- * @Author wangshaozhe
- * @Date 2026-02-04 14:15
- * @Company:
+ * 笔记搜索业务实现
  */
 @Service
 @Slf4j
@@ -62,273 +63,184 @@ public class NoteServiceImpl implements NoteService {
     @Resource
     private SelectMapper selectMapper;
 
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
     /**
-     * 搜索笔记
-     *
-     * @param searchNoteReqVO
-     * @return
+     * 一级本地缓存 (Caffeine)
+     * 针对热点搜索词，设置较短的过期时间，防止瞬时并发击穿 Redis
+     */
+    private static final Cache<String, PageResponse<SearchNoteRspVO>> SEARCH_NOTE_LOCAL_CACHE = Caffeine.newBuilder()
+            .initialCapacity(100)
+            .maximumSize(1000)
+            .expireAfterWrite(1, TimeUnit.MINUTES) // 本地缓存 1 分钟
+            .build();
+
+    /**
+     * 搜索笔记 (带多级缓存)
      */
     @Override
     public PageResponse<SearchNoteRspVO> searchNote(SearchNoteReqVO searchNoteReqVO) {
-        // 查询关键词
+        // 1. 构建复合缓存 Key
+        String cacheKeyPart = buildSearchCacheKey(searchNoteReqVO);
+
+        // 2. 尝试从本地缓存获取
+        PageResponse<SearchNoteRspVO> localResult = SEARCH_NOTE_LOCAL_CACHE.getIfPresent(cacheKeyPart);
+        if (Objects.nonNull(localResult)) {
+            log.info("==> 命中文地缓存, key: {}", cacheKeyPart);
+            return localResult;
+        }
+
+        // 3. 尝试从 Redis 二级缓存获取
+        String redisKey = RedisConstants.SEARCH_NOTE_KEY_PREFIX + cacheKeyPart;
+        String redisValue = (String) redisTemplate.opsForValue().get(redisKey);
+        if (StringUtils.isNotBlank(redisValue)) {
+            log.info("==> 命中 Redis 缓存, key: {}", redisKey);
+            PageResponse<SearchNoteRspVO> redisResult = JsonUtils.parseObject(redisValue, PageResponse.class);
+            if (Objects.nonNull(redisResult)) {
+                // 回填本地缓存
+                SEARCH_NOTE_LOCAL_CACHE.put(cacheKeyPart, redisResult);
+                return redisResult;
+            }
+        }
+
+        // 4. 缓存未命中，执行 Elasticsearch 搜索
+        PageResponse<SearchNoteRspVO> searchResult = executeSearchFromEs(searchNoteReqVO);
+
+        // 5. 将有效结果写入缓存
+        if (searchResult.isSuccess() && CollUtil.isNotEmpty(searchResult.getData())) {
+            // 写入 Redis，设置 5 分钟有效期
+            redisTemplate.opsForValue().set(redisKey, JsonUtils.toJsonString(searchResult), 5, TimeUnit.MINUTES);
+            // 写入本地缓存
+            SEARCH_NOTE_LOCAL_CACHE.put(cacheKeyPart, searchResult);
+        }
+
+        return searchResult;
+    }
+
+    /**
+     * 核心 Elasticsearch 查询逻辑
+     */
+    private PageResponse<SearchNoteRspVO> executeSearchFromEs(SearchNoteReqVO searchNoteReqVO) {
         String keyword = searchNoteReqVO.getKeyword();
-        // 当前页码
         Integer pageNo = searchNoteReqVO.getPageNo();
-        // 笔记类型
         Integer type = searchNoteReqVO.getType();
-        // 排序类型
         Integer sort = searchNoteReqVO.getSort();
-        // 发布时间范围
         Integer publishTimeRange = searchNoteReqVO.getPublishTimeRange();
 
-        // 构建 SearchRequest，指定要查询的索引
         SearchRequest searchRequest = new SearchRequest(NoteIndex.NAME);
-
-        // 创建查询构建器
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
 
-        // 创建查询条件
-        //       "query": {
-        //         "multi_match": {
-        //           "query": "壁纸",
-        //           "fields": ["title^2", "topic"]
-        //         }
-        //       },
-        // 创建查询条件
+        // 构建基础查询
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().must(
                 QueryBuilders.multiMatchQuery(keyword)
-                        .field(NoteIndex.FIELD_NOTE_TITLE, 2.0f) // 手动设置笔记标题的权重值为 2.0
-                        .field(NoteIndex.FIELD_NOTE_TOPIC) // 不设置，权重默认为 1.0
+                        .field(NoteIndex.FIELD_NOTE_TITLE, 2.0f)
+                        .field(NoteIndex.FIELD_NOTE_TOPIC)
         );
 
-        // 若勾选了笔记类型，添加过滤条件
+        // 过滤：笔记类型
         if (Objects.nonNull(type)) {
             boolQueryBuilder.filter(QueryBuilders.termQuery(NoteIndex.FIELD_NOTE_TYPE, type));
         }
 
-        // 按发布时间范围过滤
-        NotePublishTimeRangeEnum notePublishTimeRangeEnum = NotePublishTimeRangeEnum.valueOf(publishTimeRange);
-
-        if (Objects.nonNull(notePublishTimeRangeEnum)) {
-            // 结束时间
+        // 过滤：发布时间范围
+        NotePublishTimeRangeEnum rangeEnum = NotePublishTimeRangeEnum.valueOf(publishTimeRange);
+        if (Objects.nonNull(rangeEnum)) {
             String endTime = LocalDateTime.now().format(DateConstants.DATE_FORMAT_Y_M_D_H_M_S);
-            // 开始时间
             String startTime = null;
-
-            switch (notePublishTimeRangeEnum) {
-                case DAY ->
-                        startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusDays(1)); // 一天之前的时间
-                case WEEK ->
-                        startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusWeeks(1)); // 一周之前的时间
-                case HALF_YEAR ->
-                        startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusMonths(6)); // 半年之前的时间
+            switch (rangeEnum) {
+                case DAY -> startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusDays(1));
+                case WEEK -> startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusWeeks(1));
+                case HALF_YEAR -> startTime = DateUtils.localDateTime2String(LocalDateTime.now().minusMonths(6));
             }
-            // 设置时间范围
             if (StringUtils.isNoneBlank(startTime)) {
-                boolQueryBuilder.filter(QueryBuilders.rangeQuery(NoteIndex.FIELD_NOTE_CREATE_TIME)
-                        .gte(startTime) // 大于等于
-                        .lte(endTime) // 小于等于
-                );
+                boolQueryBuilder.filter(QueryBuilders.rangeQuery(NoteIndex.FIELD_NOTE_CREATE_TIME).gte(startTime).lte(endTime));
             }
         }
 
-        // 排序
-        NoteSortTypeEnum noteSortTypeEnum = NoteSortTypeEnum.valueOf(sort);
-
-        // 设置排序
-        // "sort": [
-        //     {
-        //       "_score": {
-        //         "order": "desc"
-        //       }
-        //     }
-        //   ]
-        if (Objects.nonNull(noteSortTypeEnum)) {
-            switch (noteSortTypeEnum) {
-                // 按笔记发布时间降序
+        // 排序逻辑
+        NoteSortTypeEnum sortTypeEnum = NoteSortTypeEnum.valueOf(sort);
+        if (Objects.nonNull(sortTypeEnum)) {
+            switch (sortTypeEnum) {
                 case LATEST -> sourceBuilder.sort(new FieldSortBuilder(NoteIndex.FIELD_NOTE_CREATE_TIME).order(SortOrder.DESC));
-                // 按笔记点赞量降序
                 case MOST_LIKE -> sourceBuilder.sort(new FieldSortBuilder(NoteIndex.FIELD_NOTE_LIKE_TOTAL).order(SortOrder.DESC));
-                // 按评论量降序
                 case MOST_COMMENT -> sourceBuilder.sort(new FieldSortBuilder(NoteIndex.FIELD_NOTE_COMMENT_TOTAL).order(SortOrder.DESC));
-                // 按收藏量降序
                 case MOST_COLLECT -> sourceBuilder.sort(new FieldSortBuilder(NoteIndex.FIELD_NOTE_COLLECT_TOTAL).order(SortOrder.DESC));
             }
-            // 设置查询
             sourceBuilder.query(boolQueryBuilder);
-        } else { // 综合排序
-            // 综合排序，自定义评分，并按 _score 评分降序
+        } else {
+            // 综合排序：Function Score 评分
             sourceBuilder.sort(new FieldSortBuilder("_score").order(SortOrder.DESC));
-
-            // 创建 FilterFunctionBuilder 数组
-            // "functions": [
-            //         {
-            //           "field_value_factor": {
-            //             "field": "like_total",
-            //             "factor": 0.5,
-            //             "modifier": "sqrt",
-            //             "missing": 0
-            //           }
-            //         },
-            //         {
-            //           "field_value_factor": {
-            //             "field": "collect_total",
-            //             "factor": 0.3,
-            //             "modifier": "sqrt",
-            //             "missing": 0
-            //           }
-            //         },
-            //         {
-            //           "field_value_factor": {
-            //             "field": "comment_total",
-            //             "factor": 0.2,
-            //             "modifier": "sqrt",
-            //             "missing": 0
-            //           }
-            //         }
-            //       ],
-            FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders = new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                    // function 1
-                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
-                            new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_LIKE_TOTAL)
-                                    .factor(0.5f)
-                                    .modifier(FieldValueFactorFunction.Modifier.SQRT)
-                                    .missing(0)
-                    ),
-                    // function 2
-                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
-                            new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_COLLECT_TOTAL)
-                                    .factor(0.3f)
-                                    .modifier(FieldValueFactorFunction.Modifier.SQRT)
-                                    .missing(0)
-                    ),
-                    // function 3
-                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
-                            new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_COMMENT_TOTAL)
-                                    .factor(0.2f)
-                                    .modifier(FieldValueFactorFunction.Modifier.SQRT)
-                                    .missing(0)
-                    )
+            FunctionScoreQueryBuilder.FilterFunctionBuilder[] functions = new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_LIKE_TOTAL).factor(0.5f).modifier(FieldValueFactorFunction.Modifier.SQRT).missing(0)),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_COLLECT_TOTAL).factor(0.3f).modifier(FieldValueFactorFunction.Modifier.SQRT).missing(0)),
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(new FieldValueFactorFunctionBuilder(NoteIndex.FIELD_NOTE_COMMENT_TOTAL).factor(0.2f).modifier(FieldValueFactorFunction.Modifier.SQRT).missing(0))
             };
-
-            // 构建 function_score 查询
-            // "score_mode": "sum",
-            // "boost_mode": "sum"
-            FunctionScoreQueryBuilder functionScoreQueryBuilder = QueryBuilders.functionScoreQuery(boolQueryBuilder,
-                            filterFunctionBuilders)
-                    .scoreMode(FunctionScoreQuery.ScoreMode.SUM) // score_mode 为 sum
-                    .boostMode(CombineFunction.SUM); // boost_mode 为 sum
-
-            // 设置查询
-            sourceBuilder.query(functionScoreQueryBuilder);
+            sourceBuilder.query(QueryBuilders.functionScoreQuery(boolQueryBuilder, functions).scoreMode(FunctionScoreQuery.ScoreMode.SUM).boostMode(CombineFunction.SUM));
         }
 
-        // 设置分页，from 和 size
-        int pageSize = 10; // 每页展示数据量
-        int from = (pageNo - 1) * pageSize; // 偏移量
-        sourceBuilder.from(from);
-        sourceBuilder.size(pageSize);
+        // 分页设置
+        int pageSize = 10;
+        sourceBuilder.from((pageNo - 1) * pageSize).size(pageSize);
 
-        // 设置高亮字段
-        HighlightBuilder highlightBuilder = new HighlightBuilder();
-        highlightBuilder.field(NoteIndex.FIELD_NOTE_TITLE)
-                .preTags("<strong>") // 设置包裹标签
-                .postTags("</strong>");
-        sourceBuilder.highlighter(highlightBuilder);
+        // 高亮设置
+        sourceBuilder.highlighter(new HighlightBuilder().field(NoteIndex.FIELD_NOTE_TITLE).preTags("<strong>").postTags("</strong>"));
 
-        // 将构建的查询条件设置到 SearchRequest 中
         searchRequest.source(sourceBuilder);
-
-        // 返参 VO 集合
-        List<SearchNoteRspVO> searchNoteRspVOS = null;
-        // 总文档数，默认为 0
+        List<SearchNoteRspVO> results = Lists.newArrayList();
         long total = 0;
+
         try {
-            log.info("==> SearchRequest: {}", searchRequest);
-            // 执行搜索
-            SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-
-            // 处理搜索结果
-            total = searchResponse.getHits().getTotalHits().value;
-            log.info("==> 命中文档总数, hits: {}", total);
-
-            searchNoteRspVOS = Lists.newArrayList();
-
-            // 获取搜索命中的文档列表
-            SearchHits hits = searchResponse.getHits();
-
-            for (SearchHit hit : hits) {
-                log.info("==> 文档数据: {}", hit.getSourceAsString());
-
-                // 获取文档的所有字段（以 Map 的形式返回）
-                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-
-                // 提取特定字段值
-                Long noteId = (Long) sourceAsMap.get(NoteIndex.FIELD_NOTE_ID);
-                String cover = (String) sourceAsMap.get(NoteIndex.FIELD_NOTE_COVER);
-                String title = (String) sourceAsMap.get(NoteIndex.FIELD_NOTE_TITLE);
-                String avatar = (String) sourceAsMap.get(NoteIndex.FIELD_NOTE_AVATAR);
-                String nickname = (String) sourceAsMap.get(NoteIndex.FIELD_NOTE_NICKNAME);
-                // 获取更新时间
-                String updateTimeStr = (String) sourceAsMap.get(NoteIndex.FIELD_NOTE_UPDATE_TIME);
-                LocalDateTime updateTime = LocalDateTime.parse(updateTimeStr, DateConstants.DATE_FORMAT_Y_M_D_H_M_S);
-                Integer likeTotal = (Integer) sourceAsMap.get(NoteIndex.FIELD_NOTE_LIKE_TOTAL);
-                Integer commentTotal = (Integer) sourceAsMap.get(NoteIndex.FIELD_NOTE_COMMENT_TOTAL);
-                Integer collectTotal = (Integer) sourceAsMap.get(NoteIndex.FIELD_NOTE_COLLECT_TOTAL);
-
-                // 获取高亮字段
-                String highlightedTitle = null;
-                if (CollUtil.isNotEmpty(hit.getHighlightFields())
-                        && hit.getHighlightFields().containsKey(NoteIndex.FIELD_NOTE_TITLE)) {
-                    highlightedTitle = hit.getHighlightFields().get(NoteIndex.FIELD_NOTE_TITLE).fragments()[0].string();
+            SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+            total = response.getHits().getTotalHits().value;
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> map = hit.getSourceAsMap();
+                String highlight = null;
+                if (hit.getHighlightFields().containsKey(NoteIndex.FIELD_NOTE_TITLE)) {
+                    highlight = hit.getHighlightFields().get(NoteIndex.FIELD_NOTE_TITLE).fragments()[0].string();
                 }
 
-                // 构建 VO 实体类
-                SearchNoteRspVO searchNoteRspVO = SearchNoteRspVO.builder()
-                        .noteId(noteId)
-                        .cover(cover)
-                        .title(title)
-                        .highlightTitle(highlightedTitle)
-                        .avatar(avatar)
-                        .nickname(nickname)
-                        .updateTime(DateUtils.formatRelativeTime(updateTime))
-                        .likeTotal(NumberUtils.formatNumberString(likeTotal))
-                        .commentTotal(NumberUtils.formatNumberString(commentTotal))
-                        .collectTotal(NumberUtils.formatNumberString(collectTotal))
-                        .build();
-                searchNoteRspVOS.add(searchNoteRspVO);
+                results.add(SearchNoteRspVO.builder()
+                        .noteId(Long.valueOf(map.get(NoteIndex.FIELD_NOTE_ID).toString()))
+                        .cover((String) map.get(NoteIndex.FIELD_NOTE_COVER))
+                        .title((String) map.get(NoteIndex.FIELD_NOTE_TITLE))
+                        .highlightTitle(highlight)
+                        .avatar((String) map.get(NoteIndex.FIELD_NOTE_AVATAR))
+                        .nickname((String) map.get(NoteIndex.FIELD_NOTE_NICKNAME))
+                        .updateTime(DateUtils.formatRelativeTime(LocalDateTime.parse((String) map.get(NoteIndex.FIELD_NOTE_UPDATE_TIME), DateConstants.DATE_FORMAT_Y_M_D_H_M_S)))
+                        .likeTotal(NumberUtils.formatNumberString((Integer) map.get(NoteIndex.FIELD_NOTE_LIKE_TOTAL)))
+                        .commentTotal(NumberUtils.formatNumberString((Integer) map.get(NoteIndex.FIELD_NOTE_COMMENT_TOTAL)))
+                        .collectTotal(NumberUtils.formatNumberString((Integer) map.get(NoteIndex.FIELD_NOTE_COLLECT_TOTAL)))
+                        .build());
             }
         } catch (IOException e) {
-            log.error("==> 查询 Elasticserach 异常: ", e);
+            log.error("==> ES 搜索异常: ", e);
         }
 
-        return PageResponse.success(searchNoteRspVOS, pageNo, total);
+        return PageResponse.success(results, pageNo, total);
     }
 
     /**
-     * 重建笔记文档
-     *
-     * @param rebuildNoteDocumentReqDTO
-     * @return
+     * 生成缓存 Key
      */
+    private String buildSearchCacheKey(SearchNoteReqVO vo) {
+        return String.format("%s:%d:%s:%s:%s",
+                vo.getKeyword(),
+                vo.getPageNo(),
+                Objects.toString(vo.getType(), "all"),
+                Objects.toString(vo.getSort(), "default"),
+                Objects.toString(vo.getPublishTimeRange(), "any"));
+    }
+
     @Override
-    public Response<Long> rebuildDocument(RebuildNoteDocumentReqDTO rebuildNoteDocumentReqDTO) {
-        Long noteId = rebuildNoteDocumentReqDTO.getId();
-
-        // 从数据库查询 Elasticsearch 索引数据
-        List<Map<String, Object>> result = selectMapper.selectEsNoteIndexData(noteId, null);
-
-        // 遍历查询结果，将每条记录同步到 Elasticsearch
-        for (Map<String, Object> recordMap : result) {
-            // 创建索引请求对象，指定索引名称
-            IndexRequest indexRequest = new IndexRequest(NoteIndex.NAME);
-            // 设置文档的 ID，使用记录中的主键 “id” 字段值
-            indexRequest.id((String.valueOf(recordMap.get(NoteIndex.FIELD_NOTE_ID))));
-            // 设置文档的内容，使用查询结果的记录数据
-            indexRequest.source(recordMap);
-            // 将数据写入 Elasticsearch 索引
+    public Response<Long> rebuildDocument(RebuildNoteDocumentReqDTO dto) {
+        List<Map<String, Object>> result = selectMapper.selectEsNoteIndexData(dto.getId(), null);
+        for (Map<String, Object> map : result) {
+            IndexRequest request = new IndexRequest(NoteIndex.NAME)
+                    .id(String.valueOf(map.get(NoteIndex.FIELD_NOTE_ID)))
+                    .source(map);
             try {
-                restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
+                restHighLevelClient.index(request, RequestOptions.DEFAULT);
             } catch (IOException e) {
                 log.error("==> 重建笔记文档失败: ", e);
             }

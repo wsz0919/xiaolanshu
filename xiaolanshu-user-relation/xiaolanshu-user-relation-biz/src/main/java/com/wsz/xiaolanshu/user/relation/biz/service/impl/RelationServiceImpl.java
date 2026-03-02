@@ -659,28 +659,61 @@ public class RelationServiceImpl implements RelationService {
     public Response<List<MentionUserRspVO>> findMentionUserList(String query) {
         Long userId = LoginUserContextHolder.getUserId();
 
-        // 1. 获取该用户关注的所有用户（不带搜索条件，用于本地缓存）
-        List<MentionUserRspVO> allFollowings = MENTION_CACHE.get(userId, k -> {
-            // SQL 查出前 500 个关注者（避免一个人关注太多导致内存溢出，小红书这类通常也只显示最近关注）
-            List<Long> ids = followingDOMapper.selectMentionIds(userId, null, 500);
-            if (CollectionUtils.isEmpty(ids)) return Collections.emptyList();
+        // 1. 本地缓存 (一级)
+        List<MentionUserRspVO> allCandidates = MENTION_CACHE.get(userId, k -> {
+            // --- 本地缓存失效后的加载逻辑 ---
 
-            // 批量查询用户信息
-            List<FindUserByIdRspDTO> users = userRpcService.findByIds(ids);
-            return users.stream().map(u -> MentionUserRspVO.builder()
+            // 2. Redis 缓存 (二级)
+            String redisKey = RedisConstants.buildMentionListKey(userId);
+            String redisValue = (String) redisTemplate.opsForValue().get(redisKey);
+            if (StringUtils.isNotBlank(redisValue)) {
+                try {
+                    return JsonUtils.parseList(redisValue, MentionUserRspVO.class);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // 3. 数据库/RPC (三级/原始源)
+            // 首先查询用户关注列表
+            List<Long> ids = followingDOMapper.selectMentionIds(userId, null, 500);
+            List<FindUserByIdRspDTO> userDTOs;
+
+            if (CollUtil.isNotEmpty(ids)) {
+                // 场景 A: 存在关注用户，获取这些用户的信息
+                userDTOs = userRpcService.findByIds(ids);
+            } else {
+                // 场景 B: 谁都没有关注，获取全站前 31 个用户作为兜底（排除自己）
+                userDTOs = userRpcService.findTopUsers(31);
+                if (CollUtil.isNotEmpty(userDTOs)) {
+                    // 过滤掉当前用户自己
+                    userDTOs = userDTOs.stream()
+                            .filter(u -> !Objects.equals(u.getId(), userId))
+                            .limit(30)
+                            .collect(Collectors.toList());
+                }
+            }
+
+            if (CollUtil.isEmpty(userDTOs)) return Collections.emptyList();
+
+            // 转换 DTO 到 VO
+            List<MentionUserRspVO> vos = userDTOs.stream().map(u -> MentionUserRspVO.builder()
                     .userId(u.getId())
                     .nickname(u.getNickName())
                     .avatar(u.getAvatar())
                     .build()).collect(Collectors.toList());
+
+            // 4. 同步更新 Redis
+            redisTemplate.opsForValue().set(redisKey, JsonUtils.toJsonString(vos), 10, TimeUnit.MINUTES);
+
+            return vos;
         });
 
-        // 2. 在内存中进行过滤（响应速度极快）
+        // 5. 内存中根据 query 关键词进行模糊过滤（极大提高搜索响应速度）
         if (StringUtils.isBlank(query)) {
-            // 如果没有输入，直接取前 30 个
-            return Response.success(allFollowings.stream().limit(30).collect(Collectors.toList()));
+            return Response.success(allCandidates.stream().limit(30).collect(Collectors.toList()));
         } else {
-            // 模糊匹配昵称
-            List<MentionUserRspVO> filtered = allFollowings.stream()
+            List<MentionUserRspVO> filtered = allCandidates.stream()
                     .filter(u -> u.getNickname().contains(query))
                     .limit(30)
                     .collect(Collectors.toList());

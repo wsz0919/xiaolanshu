@@ -455,6 +455,7 @@ public class NoteServiceImpl implements NoteService {
                             .videoUri(noteDO.getVideoUri())
                             .updateTime(DateUtils.parse2DateStr(noteDO.getUpdateTime()))
                             .visible(noteDO.getVisible())
+                            .channelId(noteDO.getChannelId())
                             .likeTotal(Objects.isNull(findNoteCountByIdRspDTO) ? "0" : NumberUtils.formatNumberString(findNoteCountByIdRspDTO.getLikeTotal()))
                             .collectTotal(Objects.isNull(findNoteCountByIdRspDTO) ? "0" : NumberUtils.formatNumberString(findNoteCountByIdRspDTO.getCollectTotal()))
                             .commentTotal(Objects.isNull(findNoteCountByIdRspDTO) ? "0" : NumberUtils.formatNumberString(findNoteCountByIdRspDTO.getCommentTotal()))
@@ -566,6 +567,9 @@ public class NoteServiceImpl implements NoteService {
             if (StringUtils.isBlank(topicName)) throw new BizException(ResponseCodeEnum.TOPIC_NOT_FOUND);
         }
 
+        // 话题处理
+        String topicIds = handleTopics(updateNoteReqVO.getTopics());
+
 
         // 更新笔记元数据表 t_note
         String content = updateNoteReqVO.getContent();
@@ -574,8 +578,9 @@ public class NoteServiceImpl implements NoteService {
                 .isContentEmpty(StringUtils.isBlank(content))
                 .imgUris(imgUris)
                 .title(updateNoteReqVO.getTitle())
-                .topicId(updateNoteReqVO.getTopicId())
-                .topicName(topicName)
+                //.topicId(updateNoteReqVO.getTopicId())
+                .topicIds(topicIds)
+                //.topicName(topicName)
                 .type(type)
                 .updateTime(LocalDateTime.now())
                 .videoUri(videoUri)

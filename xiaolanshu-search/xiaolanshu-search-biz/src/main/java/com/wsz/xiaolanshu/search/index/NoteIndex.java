@@ -25,6 +25,11 @@ public class NoteIndex {
     public static final String FIELD_NOTE_COVER = "cover";
 
     /**
+     * 视频
+     */
+    public static final String FIELD_NOTE_VIDEO = "video_uri";
+
+    /**
      * 头像
      */
     public static final String FIELD_NOTE_TITLE = "title";

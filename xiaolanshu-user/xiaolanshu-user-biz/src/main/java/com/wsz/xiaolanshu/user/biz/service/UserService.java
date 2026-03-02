@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.user.biz.service;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileRspVO;
+import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserTopReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.UpdateUserInfoReqVO;
 import com.wsz.xiaolanshu.user.dto.req.*;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
@@ -73,4 +74,8 @@ public interface UserService {
      */
     Response<FindUserProfileRspVO> findUserProfile(FindUserProfileReqVO findUserProfileReqVO);
 
+    /**
+     * 查询最新注册/活跃的用户
+     */
+    Response<List<FindUserByIdRspDTO>> findTopUsers(FindUserTopReqVO vo);
 }

@@ -4,11 +4,13 @@ import cn.hutool.core.collection.CollUtil;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.api.UserFeignApi;
 import com.wsz.xiaolanshu.user.dto.req.FindUserByIdReqDTO;
+import com.wsz.xiaolanshu.user.dto.req.FindUserTopReqVO;
 import com.wsz.xiaolanshu.user.dto.req.FindUsersByIdsReqDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -60,6 +62,14 @@ public class UserRpcService {
             return null;
         }
 
+        return response.getData();
+    }
+
+    public List<FindUserByIdRspDTO> findTopUsers(Integer limit) {
+        Response<List<FindUserByIdRspDTO>> response = userFeignApi.findTopUsers(new FindUserTopReqVO(limit));
+        if (!response.isSuccess() || Objects.isNull(response.getData())) {
+            return Collections.emptyList();
+        }
         return response.getData();
     }
 }

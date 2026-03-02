@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.user.biz.mapper;
 
 import com.wsz.xiaolanshu.user.biz.domain.dataobject.UserDO;
+import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -39,5 +40,10 @@ public interface UserDOMapper {
      * @return
      */
     UserDO selectByXiaolanshuId(@Param("xiaolanshuId") String xiaolanshuId);
+
+    /**
+     * 查询最新注册/活跃的用户
+     */
+    List<FindUserByIdRspDTO> selectTopUsers(@Param("limit") int limit);
 
 }

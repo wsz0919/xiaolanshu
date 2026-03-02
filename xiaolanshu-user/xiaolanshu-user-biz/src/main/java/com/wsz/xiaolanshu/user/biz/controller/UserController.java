@@ -4,6 +4,7 @@ import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserProfileRspVO;
+import com.wsz.xiaolanshu.user.biz.domain.vo.FindUserTopReqVO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.UpdateUserInfoReqVO;
 import com.wsz.xiaolanshu.user.biz.service.UserService;
 import com.wsz.xiaolanshu.user.dto.req.*;
@@ -79,5 +80,10 @@ public class UserController {
     @PostMapping(value = "/profile")
     public Response<FindUserProfileRspVO> findUserProfile(@Validated @RequestBody FindUserProfileReqVO findUserProfileReqVO) {
         return userService.findUserProfile(findUserProfileReqVO);
+    }
+
+    @PostMapping("/findTopUsers")
+    Response<List<FindUserByIdRspDTO>> findTopUsers(@RequestBody FindUserTopReqVO vo) {
+        return userService.findTopUsers(vo);
     }
 }
