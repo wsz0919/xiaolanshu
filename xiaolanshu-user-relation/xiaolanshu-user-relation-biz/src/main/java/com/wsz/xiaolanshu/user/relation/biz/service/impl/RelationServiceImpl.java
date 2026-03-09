@@ -10,6 +10,7 @@ import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
 import com.wsz.framework.common.util.DateUtils;
 import com.wsz.framework.common.util.JsonUtils;
+import com.wsz.xiaolanshu.count.dto.FindUserCountsByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.relation.biz.constant.MQConstants;
 import com.wsz.xiaolanshu.user.relation.biz.constant.RedisConstants;
@@ -23,6 +24,7 @@ import com.wsz.xiaolanshu.user.relation.biz.mapper.FansDOMapper;
 import com.wsz.xiaolanshu.user.relation.biz.mapper.FollowingDOMapper;
 import com.wsz.xiaolanshu.user.relation.biz.enums.LuaResultEnum;
 import com.wsz.xiaolanshu.user.relation.biz.enums.ResponseCodeEnum;
+import com.wsz.xiaolanshu.user.relation.biz.rpc.CountRpcService;
 import com.wsz.xiaolanshu.user.relation.biz.rpc.UserRpcService;
 import com.wsz.xiaolanshu.user.relation.biz.service.RelationService;
 import jakarta.annotation.Resource;
@@ -43,6 +45,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -71,6 +74,9 @@ public class RelationServiceImpl implements RelationService {
     @Resource
     private FansDOMapper fansDOMapper;
 
+    @Resource
+    private CountRpcService countRpcService;
+
     @Resource(name = "taskExecutor")
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
 
@@ -78,7 +84,14 @@ public class RelationServiceImpl implements RelationService {
     private static final Cache<String, Integer> FOLLOW_STATUS_CACHE = Caffeine.newBuilder()
             .initialCapacity(1000)
             .maximumSize(10000)
-            .expireAfterWrite(10, TimeUnit.SECONDS) // 缓存 30 秒，兼顾性能和实时性
+            .expireAfterWrite(10, TimeUnit.SECONDS) // 缓存 10 秒，兼顾性能和实时性
+            .build();
+
+    // 定义关注状态本地缓存 (Key: "userId:targetId", Value: StatusBoolean)
+    private static final Cache<String, Boolean> FOLLOW_CACHE = Caffeine.newBuilder()
+            .initialCapacity(1000)
+            .maximumSize(10000)
+            .expireAfterWrite(10, TimeUnit.SECONDS) // 缓存 10 秒，兼顾性能和实时性
             .build();
 
     // Key 是当前操作者 userId，Value 是他关注的所有用户基础信息
@@ -139,9 +152,19 @@ public class RelationServiceImpl implements RelationService {
             // 从数据库查询当前用户的关注关系记录
             List<FollowingDO> followingDOS = followingDOMapper.selectByUserId(userId);
 
-            // 随机过期时间
-            // 保底1天+随机秒数
-            long expireSeconds = 60*60*24 + RandomUtil.randomInt(60*60*24);
+            // 随机过期时间: 保底1天 + 随机秒数
+            long expireSeconds = 60 * 60 * 24 + RandomUtil.randomInt(60 * 60 * 24);
+
+            // 据用户类型（粉丝数）设置不同的过期时间
+            try {
+                FindUserCountsByIdRspDTO userCountDTO = countRpcService.findUserCountById(userId);
+                if (Objects.nonNull(userCountDTO) && userCountDTO.getFansTotal() != null && userCountDTO.getFansTotal() > 10000) {
+                    // 若当前用户为大V (粉丝数 > 1万), 则缓存过期时间设置得更长 (7天 + 随机时间)
+                    expireSeconds = 60 * 60 * 24 * 7 + RandomUtil.randomInt(60 * 60 * 24);
+                }
+            } catch (Exception e) {
+                log.error("==> 获取用户计数异常, 使用默认缓存过期时间", e);
+            }
 
             // 若记录为空，直接 ZADD 对象, 并设置过期时间
             if (CollUtil.isEmpty(followingDOS)) {
@@ -149,8 +172,6 @@ public class RelationServiceImpl implements RelationService {
                 script2.setScriptSource(new ResourceScriptSource(new ClassPathResource("/lua/follow_add_and_expire.lua")));
                 script2.setResultType(Long.class);
 
-                // TODO: 可以根据用户类型，设置不同的过期时间，若当前用户为大V, 则可以过期时间设置的长些或者不设置过期时间；如不是，则设置的短些
-                // 如何判断呢？可以从计数服务获取用户的粉丝数，目前计数服务还没创建，则暂时采用统一的过期策略
                 redisTemplate.execute(script2, Collections.singletonList(followingRedisKey), followUserId, timestamp, expireSeconds);
             } else { // 若记录不为空，则将关注关系数据全量同步到 Redis 中，并设置过期时间；
                 // 构建 Lua 参数
@@ -490,8 +511,6 @@ public class RelationServiceImpl implements RelationService {
         }
     }
 
-    // 省略...
-
     /**
      * RPC: 调用用户服务、计数服务，并将 DTO 转换为 VO 粉丝列表
      * @param userIds
@@ -502,18 +521,32 @@ public class RelationServiceImpl implements RelationService {
         // RPC: 批量查询用户信息
         List<FindUserByIdRspDTO> findUserByIdRspDTOS = userRpcService.findByIds(userIds);
 
-        // TODO RPC: 批量查询用户的计数数据（笔记总数、粉丝总数）
+        // 并发 RPC 批量查询用户的计数数据（笔记总数、粉丝总数）
+        List<CompletableFuture<FindUserCountsByIdRspDTO>> countFutures = userIds.stream()
+                .map(id -> CompletableFuture.supplyAsync(() -> countRpcService.findUserCountById(id), threadPoolTaskExecutor))
+                .toList();
+
+        CompletableFuture.allOf(countFutures.toArray(new CompletableFuture[0])).join();
+
+        // 收集结果组装成 Map，方便后续通过 userId 获取
+        Map<Long, FindUserCountsByIdRspDTO> userCountMap = countFutures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(FindUserCountsByIdRspDTO::getUserId, count -> count));
 
         // 若不为空，DTO 转 VO
         if (CollUtil.isNotEmpty(findUserByIdRspDTOS)) {
             findFansUserRspVOS = findUserByIdRspDTOS.stream()
-                    .map(dto -> FindFansUserRspVO.builder()
-                            .userId(dto.getId())
-                            .avatar(dto.getAvatar())
-                            .nickname(dto.getNickName())
-                            .noteTotal(0L) // TODO: 这块的数据暂无，后续补充
-                            .fansTotal(0L) // TODO: 这块的数据暂无，后续补充
-                            .build())
+                    .map(dto -> {
+                        FindUserCountsByIdRspDTO countDTO = userCountMap.get(dto.getId());
+                        return FindFansUserRspVO.builder()
+                                .userId(dto.getId())
+                                .avatar(dto.getAvatar())
+                                .nickname(dto.getNickName())
+                                .noteTotal(Objects.nonNull(countDTO) ? countDTO.getNoteTotal() : 0L) // 填充真实笔记总数
+                                .fansTotal(Objects.nonNull(countDTO) ? countDTO.getFansTotal() : 0L) // 填充真实粉丝总数
+                                .build();
+                    })
                     .toList();
         }
         return findFansUserRspVOS;
@@ -647,12 +680,20 @@ public class RelationServiceImpl implements RelationService {
 
     @Override
     public Response<?> checkFollowStatus(FollowUserReqDTO followUserReqDTO) {
-        long count = followingDOMapper.checkFollowStatus(followUserReqDTO.getSenderId(), followUserReqDTO.getReceiverId());
+        Long userId = followUserReqDTO.getReceiverId();
+        Long targetUserId = followUserReqDTO.getSenderId();
+        String cacheKey = userId + ":" + targetUserId;
 
-        if (count > 0) {
-            return Response.success(true);
-        }
-        return Response.success(false);
+        Boolean status = FOLLOW_CACHE.get(cacheKey, key -> {
+            long countFollow = followingDOMapper.checkFollowStatus(followUserReqDTO.getSenderId(), followUserReqDTO.getReceiverId());
+            long countFan = followingDOMapper.checkFollowStatus(followUserReqDTO.getReceiverId() ,followUserReqDTO.getSenderId());
+            long count = countFan + countFollow;
+
+            return count > 1;
+        });
+
+
+        return Response.success(status);
     }
 
     @Override

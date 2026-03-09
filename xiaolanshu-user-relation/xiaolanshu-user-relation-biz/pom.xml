@@ -115,6 +115,10 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-count-api</artifactId>
+        </dependency>
 
     </dependencies>
 

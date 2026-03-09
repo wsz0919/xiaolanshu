@@ -4,9 +4,12 @@ import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.search.constant.ApiConstants;
 import com.wsz.xiaolanshu.search.dto.RebuildNoteDocumentReqDTO;
 import com.wsz.xiaolanshu.search.dto.RebuildUserDocumentReqDTO;
+import com.wsz.xiaolanshu.search.dto.SearchNoteDTO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+
+import java.util.List;
 
 /**
  * Description
@@ -37,4 +40,9 @@ public interface SearchFeignApi {
     @PostMapping(value = PREFIX + "/user/document/rebuild")
     Response<?> rebuildUserDocument(@RequestBody RebuildUserDocumentReqDTO rebuildUserDocumentReqDTO);
 
+    /**
+     * 根据笔记 ID 集合，从 ES 批量获取聚合并格式化后的笔记文档数据
+     */
+    @PostMapping(value = PREFIX + "/note/document/searchByIds")
+    Response<List<SearchNoteDTO>> searchNotesByIds(@RequestBody List<Long> noteIds);
 }

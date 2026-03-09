@@ -6,6 +6,7 @@ import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteReqVO;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteRspVO;
 import com.wsz.xiaolanshu.search.dto.RebuildNoteDocumentReqDTO;
+import com.wsz.xiaolanshu.search.dto.SearchNoteDTO;
 import com.wsz.xiaolanshu.search.service.NoteService;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * Description
@@ -39,5 +42,10 @@ public class NoteController {
     @ApiOperationLog(description = "用户文档重建")
     public Response<Long> rebuildDocument(@Validated @RequestBody RebuildNoteDocumentReqDTO rebuildNoteDocumentReqDTO) {
         return noteService.rebuildDocument(rebuildNoteDocumentReqDTO);
+    }
+
+    @PostMapping("/document/searchByIds")
+    public Response<List<SearchNoteDTO>> searchNotesByIds(@RequestBody List<Long> noteIds) {
+        return noteService.searchNotesByIds(noteIds);
     }
 }

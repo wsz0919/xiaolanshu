@@ -14,6 +14,7 @@ import com.wsz.xiaolanshu.search.constant.RedisConstants;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteReqVO;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteRspVO;
 import com.wsz.xiaolanshu.search.dto.RebuildNoteDocumentReqDTO;
+import com.wsz.xiaolanshu.search.dto.SearchNoteDTO;
 import com.wsz.xiaolanshu.search.enums.NotePublishTimeRangeEnum;
 import com.wsz.xiaolanshu.search.enums.NoteSortTypeEnum;
 import com.wsz.xiaolanshu.search.index.NoteIndex;
@@ -87,7 +88,7 @@ public class NoteServiceImpl implements NoteService {
         // 2. 尝试从本地缓存获取
         PageResponse<SearchNoteRspVO> localResult = SEARCH_NOTE_LOCAL_CACHE.getIfPresent(cacheKeyPart);
         if (Objects.nonNull(localResult)) {
-            log.info("==> 命中文地缓存, key: {}", cacheKeyPart);
+            log.info("==> 命中本地缓存, key: {}", cacheKeyPart);
             return localResult;
         }
 
@@ -204,6 +205,7 @@ public class NoteServiceImpl implements NoteService {
                         .noteId(Long.valueOf(map.get(NoteIndex.FIELD_NOTE_ID).toString()))
                         .cover((String) map.get(NoteIndex.FIELD_NOTE_COVER))
                         .title((String) map.get(NoteIndex.FIELD_NOTE_TITLE))
+                        .videoUri((String) map.get(NoteIndex.FIELD_NOTE_VIDEO))
                         .highlightTitle(highlight)
                         .avatar((String) map.get(NoteIndex.FIELD_NOTE_AVATAR))
                         .nickname((String) map.get(NoteIndex.FIELD_NOTE_NICKNAME))
@@ -246,5 +248,45 @@ public class NoteServiceImpl implements NoteService {
             }
         }
         return Response.success();
+    }
+
+    @Override
+    public Response<List<SearchNoteDTO>> searchNotesByIds(List<Long> noteIds) {
+        if (CollUtil.isEmpty(noteIds)) {
+            return Response.success(Lists.newArrayList());
+        }
+
+        SearchRequest searchRequest = new SearchRequest(NoteIndex.NAME);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+
+        // 构建 terms 查询 (等同于 SQL 的 in 操作)
+        sourceBuilder.query(QueryBuilders.termsQuery(NoteIndex.FIELD_NOTE_ID, noteIds));
+        // 设置 size 为传入 ID 的数量，确保能查出全部
+        sourceBuilder.size(noteIds.size());
+
+        searchRequest.source(sourceBuilder);
+
+        List<SearchNoteDTO> results = Lists.newArrayList();
+        try {
+            SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> map = hit.getSourceAsMap();
+                SearchNoteDTO dto = SearchNoteDTO.builder()
+                        .noteId(((Number) map.get(NoteIndex.FIELD_NOTE_ID)).longValue())
+                        .title((String) map.get(NoteIndex.FIELD_NOTE_TITLE))
+                        .type((Integer) map.get(NoteIndex.FIELD_NOTE_TYPE))
+                        .cover((String) map.get(NoteIndex.FIELD_NOTE_COVER))
+                        .videoUri((String) map.get(NoteIndex.FIELD_NOTE_VIDEO))
+                        .creatorId(((Number) map.get(NoteIndex.FIELD_NOTE_CREATOR_ID)).longValue())
+                        .nickname((String) map.get(NoteIndex.FIELD_NOTE_NICKNAME))
+                        .avatar((String) map.get(NoteIndex.FIELD_NOTE_AVATAR))
+                        .likeTotal(((Number) map.getOrDefault(NoteIndex.FIELD_NOTE_LIKE_TOTAL, 0)).intValue())
+                        .build();
+                results.add(dto);
+            }
+        } catch (Exception e) {
+            log.error("==> ES 批量查询笔记失败: ", e);
+        }
+        return Response.success(results);
     }
 }

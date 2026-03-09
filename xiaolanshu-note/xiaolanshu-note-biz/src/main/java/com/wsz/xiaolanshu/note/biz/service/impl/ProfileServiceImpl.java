@@ -2,30 +2,31 @@ package com.wsz.xiaolanshu.note.biz.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.wsz.framework.common.response.PageResponse;
-import com.wsz.xiaolanshu.note.biz.domain.dataobject.NoteCountDO;
+import com.wsz.xiaolanshu.count.dto.FindNoteCountByIdRspDTO;
 import com.wsz.xiaolanshu.note.biz.domain.dataobject.NoteDO;
 import com.wsz.xiaolanshu.note.biz.domain.vo.FindProfileNotePageListReqVO;
 import com.wsz.xiaolanshu.note.biz.domain.vo.FindProfileNoteRspVO;
 import com.wsz.xiaolanshu.note.biz.enums.NoteTypeEnum;
 import com.wsz.xiaolanshu.note.biz.enums.ProfileNoteTypeEnum;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteCollectionDOMapper;
-import com.wsz.xiaolanshu.note.biz.mapper.NoteCountDOMapper;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteDOMapper;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteLikeDOMapper;
+import com.wsz.xiaolanshu.note.biz.rpc.CountRpcService;
 import com.wsz.xiaolanshu.note.biz.rpc.UserRpcService;
 import com.wsz.xiaolanshu.note.biz.service.ProfileService;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -43,9 +44,6 @@ public class ProfileServiceImpl implements ProfileService {
     private NoteDOMapper noteDOMapper;
 
     @Resource
-    private NoteCountDOMapper noteCountDOMapper;
-
-    @Resource
     private UserRpcService userRpcService;
 
     @Resource
@@ -53,6 +51,12 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Resource
     private NoteLikeDOMapper noteLikeDOMapper;
+
+    @Resource
+    private CountRpcService countRpcService;
+
+    @Resource(name = "taskExecutor")
+    private ThreadPoolTaskExecutor threadPoolTaskExecutor;
 
     @Override
     public PageResponse<FindProfileNoteRspVO> findNoteList(FindProfileNotePageListReqVO findProfileNotePageListReqVO) {
@@ -63,7 +67,7 @@ public class ProfileServiceImpl implements ProfileService {
         // 每页展示的数据量
         long pageSize = 10;
 
-        // TODO: 为快速完成前后端联调，目前走数据库查询
+        // TODO: 为快速完成前后端联调，目前走数据库查询 (待 ES 搜索接口完善后替换)
 
         ProfileNoteTypeEnum profileNoteTypeEnum = ProfileNoteTypeEnum.valueOf(queryType);
 
@@ -128,14 +132,20 @@ public class ProfileServiceImpl implements ProfileService {
             Map<Long, FindUserByIdRspDTO> userIdAndDTOMap = findUserByIdRspDTOS.stream()
                     .collect(Collectors.toMap(FindUserByIdRspDTO::getId, dto -> dto));
 
-            // 批量查询笔记计数 TODO: 快速完成前后端联调，后续需要改成走 RPC 查询
+            // RPC: 批量查询笔记计数 (使用并发异步调用)
             List<Long> noteIds = noteDOS.stream().map(NoteDO::getId).toList();
-            List<NoteCountDO> noteCountDOS = noteCountDOMapper.selectByNoteIds(noteIds);
-            Map<Long, NoteCountDO> noteIdAndDOMap = Maps.newHashMap();
-            if (CollUtil.isNotEmpty(noteCountDOS)) {
-                noteIdAndDOMap = noteCountDOS.stream()
-                        .collect(Collectors.toMap(NoteCountDO::getNoteId, noteCountDO -> noteCountDO));
-            }
+            List<CompletableFuture<FindNoteCountByIdRspDTO>> countFutures = noteIds.stream()
+                    .map(noteId -> CompletableFuture.supplyAsync(() -> countRpcService.findNoteCountById(noteId), threadPoolTaskExecutor))
+                    .toList();
+
+            // 等待所有 RPC 调用完成
+            CompletableFuture.allOf(countFutures.toArray(new CompletableFuture[0])).join();
+
+            // 将获取到的计数结果转为 Map，方便后续装配数据
+            Map<Long, FindNoteCountByIdRspDTO> noteIdAndCountMap = countFutures.stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(FindNoteCountByIdRspDTO::getNoteId, countObj -> countObj));
 
             // 分页返参
             for (NoteDO noteDO : noteDOS) {
@@ -168,10 +178,10 @@ public class ProfileServiceImpl implements ProfileService {
                     findProfileNoteRspVO.setAvatar(findUserByIdRspDTO.getAvatar());
                 }
 
-                // 设置点赞数据
-                NoteCountDO noteCountDO = noteIdAndDOMap.get(noteDO.getId());
-                findProfileNoteRspVO.setLikeTotal(Objects.nonNull(noteCountDO)
-                        ? String.valueOf(noteCountDO.getLikeTotal()) : "0");
+                // 设置点赞数据 (使用刚查询出来的 RPC 计数结果)
+                FindNoteCountByIdRspDTO countDTO = noteIdAndCountMap.get(noteDO.getId());
+                findProfileNoteRspVO.setLikeTotal(Objects.nonNull(countDTO)
+                        ? String.valueOf(countDTO.getLikeTotal()) : "0");
 
                 noteRspVOS.add(findProfileNoteRspVO);
             }
@@ -194,8 +204,4 @@ public class ProfileServiceImpl implements ProfileService {
         }
         return null;
     }
-
-    // private PageResponse<FindProfileNoteRspVO> selectAllNotes(List<FindDiscoverNoteRspVO> noteRspVOS, Integer pageNo, long pageSize) {
-    //
-    // }
 }

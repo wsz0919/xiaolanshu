@@ -5,6 +5,9 @@ import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteReqVO;
 import com.wsz.xiaolanshu.search.domain.vo.SearchNoteRspVO;
 import com.wsz.xiaolanshu.search.dto.RebuildNoteDocumentReqDTO;
+import com.wsz.xiaolanshu.search.dto.SearchNoteDTO;
+
+import java.util.List;
 
 /**
  * Description
@@ -29,4 +32,10 @@ public interface NoteService {
      */
     Response<Long> rebuildDocument(RebuildNoteDocumentReqDTO rebuildNoteDocumentReqDTO);
 
+    /**
+     * 批量搜索笔记
+     * @param noteIds
+     * @return
+     */
+    Response<List<SearchNoteDTO>> searchNotesByIds(List<Long> noteIds);
 }

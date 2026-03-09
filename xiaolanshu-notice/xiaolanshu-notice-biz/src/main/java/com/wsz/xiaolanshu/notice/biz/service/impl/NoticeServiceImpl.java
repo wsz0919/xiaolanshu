@@ -49,16 +49,22 @@ public class NoticeServiceImpl implements NoticeService {
     private NoticeDOMapper noticeDOMapper;
     @Resource
     private UserFeignApi userFeignApi;
+
     @Resource
     private NoteFeignApi noteFeignApi;
+
     @Resource
     private KeyValueFeignApi keyValueFeignApi;
+
     @Resource
     private CommentFeignApi commentFeignApi;
     @Resource
+
     private UserRelationFeignApi relationFeignApi;
+
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
+
     @Resource(name = "taskExecutor")
     private ThreadPoolTaskExecutor threadPoolTaskExecutor;
 

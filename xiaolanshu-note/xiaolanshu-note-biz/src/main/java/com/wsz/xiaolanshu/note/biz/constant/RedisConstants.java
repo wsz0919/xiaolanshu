@@ -55,6 +55,11 @@ public class RedisConstants {
     public static final String NOTE_COUNT_KEY = "count:note:";
 
     /**
+     * 频道列表缓存 KEY
+     */
+    public static final String CHANNEL_LIST_KEY = "channel:list";
+
+    /**
      * Hash Field: 点赞总数
      */
     public static final String FIELD_LIKE_TOTAL = "likeTotal";

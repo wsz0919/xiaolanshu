@@ -30,6 +30,21 @@ public class NoteIndex {
     public static final String FIELD_NOTE_VIDEO = "video_uri";
 
     /**
+     * 发布者/创作者ID
+     */
+    public static final String FIELD_NOTE_CREATOR_ID = "creator_id";
+
+    /**
+     * 可见性
+     */
+    public static final String FIELD_NOTE_VISIBLE = "visible";
+
+    /**
+     * 发布状态
+     */
+    public static final String FIELD_NOTE_STATUS = "status";
+
+    /**
      * 头像
      */
     public static final String FIELD_NOTE_TITLE = "title";
