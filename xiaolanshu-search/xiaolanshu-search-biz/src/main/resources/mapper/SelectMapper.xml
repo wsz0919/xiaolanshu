@@ -3,11 +3,12 @@
 <mapper namespace="com.wsz.xiaolanshu.search.mapper.SelectMapper">
 
     <select id="selectEsNoteIndexData" resultType="map" parameterType="map">
-        select n.id, n.title, n.topic_name as topic, n.type,
-        SUBSTRING_INDEX(n.img_uris, ',', 1) AS cover,
+        select n.id, n.title, n.type,
+        IFNULL(SUBSTRING_INDEX(n.img_uris, ',', 1), null) AS cover,
         DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS create_time,
         DATE_FORMAT(n.update_time, '%Y-%m-%d %H:%i:%s') AS update_time,
-        u.nickname AS creator_nickname, u.avatar AS creator_avatar,
+        u.nickname AS creator_nickname, u.avatar,
+        n.creator_id AS creator_id, n.video_uri, n.visible, n.status,
         IFNULL(nc.like_total, 0) as like_total,
         IFNULL(nc.collect_total, 0) as collect_total,
         IFNULL(nc.comment_total, 0) as comment_total

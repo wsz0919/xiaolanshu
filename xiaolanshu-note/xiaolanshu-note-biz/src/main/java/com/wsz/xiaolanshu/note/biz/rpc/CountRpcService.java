@@ -5,6 +5,8 @@ import com.wsz.xiaolanshu.count.api.CountFeignApi;
 import com.wsz.xiaolanshu.count.dto.FindNoteCountByIdReqDTO;
 import com.wsz.xiaolanshu.count.dto.FindNoteCountByIdRspDTO;
 
+import com.wsz.xiaolanshu.count.dto.FindUserCountsByIdReqDTO;
+import com.wsz.xiaolanshu.count.dto.FindUserCountsByIdRspDTO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import java.util.Objects;
@@ -32,6 +34,24 @@ public class CountRpcService {
         findNoteCountByIdReqDTO.setNoteId(noteId);
 
         Response<FindNoteCountByIdRspDTO> response = countFeignApi.findNoteCount(findNoteCountByIdReqDTO);
+
+        if (Objects.isNull(response) || !response.isSuccess()) {
+            return null;
+        }
+
+        return response.getData();
+    }
+
+    /**
+     * 查询用户计数信息（如粉丝数、关注数等）
+     * @param userId
+     * @return
+     */
+    public FindUserCountsByIdRspDTO findUserCountsById(Long userId) {
+        FindUserCountsByIdReqDTO reqDTO = new FindUserCountsByIdReqDTO();
+        reqDTO.setUserId(userId);
+
+        Response<FindUserCountsByIdRspDTO> response = countFeignApi.findUserCount(reqDTO);
 
         if (Objects.isNull(response) || !response.isSuccess()) {
             return null;

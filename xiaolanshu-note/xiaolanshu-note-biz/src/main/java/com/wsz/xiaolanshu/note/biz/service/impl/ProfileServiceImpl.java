@@ -3,30 +3,23 @@ package com.wsz.xiaolanshu.note.biz.service.impl;
 import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Lists;
 import com.wsz.framework.common.response.PageResponse;
-import com.wsz.xiaolanshu.count.dto.FindNoteCountByIdRspDTO;
 import com.wsz.xiaolanshu.note.biz.domain.dataobject.NoteDO;
 import com.wsz.xiaolanshu.note.biz.domain.vo.FindProfileNotePageListReqVO;
 import com.wsz.xiaolanshu.note.biz.domain.vo.FindProfileNoteRspVO;
-import com.wsz.xiaolanshu.note.biz.enums.NoteTypeEnum;
 import com.wsz.xiaolanshu.note.biz.enums.ProfileNoteTypeEnum;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteCollectionDOMapper;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteDOMapper;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteLikeDOMapper;
-import com.wsz.xiaolanshu.note.biz.rpc.CountRpcService;
-import com.wsz.xiaolanshu.note.biz.rpc.UserRpcService;
+import com.wsz.xiaolanshu.note.biz.rpc.SearchRpcService;
 import com.wsz.xiaolanshu.note.biz.service.ProfileService;
-import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
+import com.wsz.xiaolanshu.search.dto.SearchNoteDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -44,19 +37,14 @@ public class ProfileServiceImpl implements ProfileService {
     private NoteDOMapper noteDOMapper;
 
     @Resource
-    private UserRpcService userRpcService;
-
-    @Resource
     private NoteCollectionDOMapper noteCollectionDOMapper;
 
     @Resource
     private NoteLikeDOMapper noteLikeDOMapper;
 
+    // 注入搜索 RPC 服务，去除了原有的 UserRpcService 和 NoteCountDOMapper
     @Resource
-    private CountRpcService countRpcService;
-
-    @Resource(name = "taskExecutor")
-    private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+    private SearchRpcService searchRpcService;
 
     @Override
     public PageResponse<FindProfileNoteRspVO> findNoteList(FindProfileNotePageListReqVO findProfileNotePageListReqVO) {
@@ -67,123 +55,73 @@ public class ProfileServiceImpl implements ProfileService {
         // 每页展示的数据量
         long pageSize = 10;
 
-        // TODO: 为快速完成前后端联调，目前走数据库查询 (待 ES 搜索接口完善后替换)
-
         ProfileNoteTypeEnum profileNoteTypeEnum = ProfileNoteTypeEnum.valueOf(queryType);
 
         List<FindProfileNoteRspVO> noteRspVOS = Lists.newArrayList();
-        List<NoteDO> noteDOS = null;
+        List<Long> noteIds = null;
         int count = 0;
+
+        // 统一计算分页查询的偏移量 offset
+        long offset = PageResponse.getOffset(pageNo, pageSize);
+
+        // 1. 获取不同 Tab (全部/收藏/点赞) 下的总数及分页 ID 列表
         switch (profileNoteTypeEnum) {
             case ALL -> { // 查询所有笔记
                 count = noteDOMapper.selectTotalCountByCreatorId(userId);
 
-                // 计算分页查询的偏移量 offset
-                long offset = PageResponse.getOffset(pageNo, pageSize);
-
                 PageResponse<FindProfileNoteRspVO> checkResponse = checkCountAndPageNo(count, pageNo, pageSize);
                 if (Objects.nonNull(checkResponse)) return checkResponse;
 
-                noteDOS = noteDOMapper.selectPageListByCreatorId(userId, offset, pageSize);
+                List<NoteDO> noteDOS = noteDOMapper.selectPageListByCreatorId(userId, offset, pageSize);
+                noteIds = noteDOS.stream().map(NoteDO::getId).collect(Collectors.toList());
             }
             case COLLECTED -> { // 查询用户收藏的笔记
                 count = noteCollectionDOMapper.selectTotalCountByUserId(userId);
 
-                // 计算分页查询的偏移量 offset
-                long offset = PageResponse.getOffset(pageNo, pageSize);
-
                 PageResponse<FindProfileNoteRspVO> checkResponse = checkCountAndPageNo(count, pageNo, pageSize);
                 if (Objects.nonNull(checkResponse)) return checkResponse;
 
-                List<Long> noteIds = noteCollectionDOMapper.selectPageListByUserId(userId, offset, pageSize);
-
-                if (CollUtil.isNotEmpty(noteIds)) {
-                    List<NoteDO> notes = noteDOMapper.selectByNoteIds(noteIds);
-                    Map<Long, NoteDO> noteIdAndDOMap = notes.stream().collect(Collectors.toMap(NoteDO::getId, noteDO -> noteDO));
-                    noteDOS = noteIds.stream()
-                            .map(noteIdAndDOMap::get).collect(Collectors.toList());
-                }
+                noteIds = noteCollectionDOMapper.selectPageListByUserId(userId, offset, pageSize);
             }
             case LIKED -> { // 查询用户点赞的笔记
                 count = noteLikeDOMapper.selectTotalCountByUserId(userId);
 
-                // 计算分页查询的偏移量 offset
-                long offset = PageResponse.getOffset(pageNo, pageSize);
-
                 PageResponse<FindProfileNoteRspVO> checkResponse = checkCountAndPageNo(count, pageNo, pageSize);
                 if (Objects.nonNull(checkResponse)) return checkResponse;
 
-                List<Long> noteIds = noteLikeDOMapper.selectPageListByUserId(userId, offset, pageSize);
-
-                if (CollUtil.isNotEmpty(noteIds)) {
-                    List<NoteDO> notes = noteDOMapper.selectByNoteIds(noteIds);
-                    Map<Long, NoteDO> noteIdAndDOMap = notes.stream().collect(Collectors.toMap(NoteDO::getId, noteDO -> noteDO));
-                    noteDOS = noteIds.stream()
-                            .map(noteIdAndDOMap::get).collect(Collectors.toList());
-                }
+                noteIds = noteLikeDOMapper.selectPageListByUserId(userId, offset, pageSize);
             }
         }
 
-        if (CollUtil.isNotEmpty(noteDOS)) {
-            List<Long> creatorIds = noteDOS.stream().map(NoteDO::getCreatorId).toList();
+        // 2. 利用拿到的 noteIds 走 RPC 调用 Elasticsearch 搜索聚合数据
+        if (CollUtil.isNotEmpty(noteIds)) {
+            List<SearchNoteDTO> searchNoteDTOS = searchRpcService.searchNotesByIds(noteIds);
 
-            // RPC: 调用用户服务，批量获取用户信息（头像、昵称等）
-            List<FindUserByIdRspDTO> findUserByIdRspDTOS = userRpcService.findByIds(creatorIds);
-            Map<Long, FindUserByIdRspDTO> userIdAndDTOMap = findUserByIdRspDTOS.stream()
-                    .collect(Collectors.toMap(FindUserByIdRspDTO::getId, dto -> dto));
+            if (CollUtil.isNotEmpty(searchNoteDTOS)) {
+                // 将 ES 返回的数据转换为 Map，方便根据 ID 快速提取并保持原本的分页排序顺序
+                Map<Long, SearchNoteDTO> noteIdToDTOMap = searchNoteDTOS.stream()
+                        .collect(Collectors.toMap(SearchNoteDTO::getNoteId, dto -> dto));
 
-            // RPC: 批量查询笔记计数 (使用并发异步调用)
-            List<Long> noteIds = noteDOS.stream().map(NoteDO::getId).toList();
-            List<CompletableFuture<FindNoteCountByIdRspDTO>> countFutures = noteIds.stream()
-                    .map(noteId -> CompletableFuture.supplyAsync(() -> countRpcService.findNoteCountById(noteId), threadPoolTaskExecutor))
-                    .toList();
+                // 3. 分页返参，严格按照数据库返回的 noteIds 顺序（如最新收藏、最新点赞的时间倒序）组装
+                for (Long noteId : noteIds) {
+                    SearchNoteDTO searchNoteDTO = noteIdToDTOMap.get(noteId);
 
-            // 等待所有 RPC 调用完成
-            CompletableFuture.allOf(countFutures.toArray(new CompletableFuture[0])).join();
+                    if (Objects.nonNull(searchNoteDTO)) {
+                        FindProfileNoteRspVO findProfileNoteRspVO = FindProfileNoteRspVO.builder()
+                                .id(String.valueOf(searchNoteDTO.getNoteId()))
+                                .title(searchNoteDTO.getTitle())
+                                .type(searchNoteDTO.getType())
+                                .cover(searchNoteDTO.getCover())
+                                .videoUri(searchNoteDTO.getVideoUri())
+                                .creatorId(searchNoteDTO.getCreatorId())
+                                .nickname(searchNoteDTO.getNickname())
+                                .avatar(searchNoteDTO.getAvatar())
+                                .likeTotal(searchNoteDTO.getLikeTotal() != null ? String.valueOf(searchNoteDTO.getLikeTotal()) : "0")
+                                .build();
 
-            // 将获取到的计数结果转为 Map，方便后续装配数据
-            Map<Long, FindNoteCountByIdRspDTO> noteIdAndCountMap = countFutures.stream()
-                    .map(CompletableFuture::join)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(FindNoteCountByIdRspDTO::getNoteId, countObj -> countObj));
-
-            // 分页返参
-            for (NoteDO noteDO : noteDOS) {
-                Integer type = noteDO.getType();
-                FindProfileNoteRspVO findProfileNoteRspVO = FindProfileNoteRspVO.builder()
-                        .id(String.valueOf(noteDO.getId()))
-                        .title(noteDO.getTitle())
-                        .type(type)
-                        .build();
-
-                NoteTypeEnum noteTypeEnum = NoteTypeEnum.valueOf(type);
-
-                switch (noteTypeEnum) {
-                    case IMAGE_TEXT -> {
-                        // 提取第一张图片作为封面图
-                        String cover = Optional.ofNullable(noteDO.getImgUris())
-                                .map(uris -> StringUtils.split(uris, ",")[0])
-                                .orElse(null);
-                        findProfileNoteRspVO.setCover(cover);
+                        noteRspVOS.add(findProfileNoteRspVO);
                     }
-                    case VIDEO -> findProfileNoteRspVO.setVideoUri(noteDO.getVideoUri());
                 }
-
-                // 设置发布者信息
-                Long noteCreatorId = noteDO.getCreatorId();
-                FindUserByIdRspDTO findUserByIdRspDTO = userIdAndDTOMap.get(noteCreatorId);
-                if (Objects.nonNull(findUserByIdRspDTO)) {
-                    findProfileNoteRspVO.setCreatorId(noteCreatorId);
-                    findProfileNoteRspVO.setNickname(findUserByIdRspDTO.getNickName());
-                    findProfileNoteRspVO.setAvatar(findUserByIdRspDTO.getAvatar());
-                }
-
-                // 设置点赞数据 (使用刚查询出来的 RPC 计数结果)
-                FindNoteCountByIdRspDTO countDTO = noteIdAndCountMap.get(noteDO.getId());
-                findProfileNoteRspVO.setLikeTotal(Objects.nonNull(countDTO)
-                        ? String.valueOf(countDTO.getLikeTotal()) : "0");
-
-                noteRspVOS.add(findProfileNoteRspVO);
             }
         }
 
@@ -191,7 +129,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private static PageResponse<FindProfileNoteRspVO> checkCountAndPageNo(int count, Integer pageNo, long pageSize) {
-        // 若评论总数为 0，则直接响应
+        // 若总数为 0，则直接响应
         if (count == 0) {
             return PageResponse.success(null, pageNo, 0);
         }

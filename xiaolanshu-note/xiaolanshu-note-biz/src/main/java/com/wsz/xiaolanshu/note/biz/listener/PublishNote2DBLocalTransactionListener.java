@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.note.biz.listener;
 
 import com.wsz.framework.common.util.JsonUtils;
+import com.wsz.xiaolanshu.count.dto.FindUserCountsByIdRspDTO;
 import com.wsz.xiaolanshu.note.biz.constant.MQConstants;
 import com.wsz.xiaolanshu.note.biz.constant.RedisConstants;
 import com.wsz.xiaolanshu.note.biz.convert.NoteConvert;
@@ -9,6 +10,7 @@ import com.wsz.xiaolanshu.note.biz.domain.dto.NoteOperateMqDTO;
 import com.wsz.xiaolanshu.note.biz.domain.dto.PublishNoteDTO;
 import com.wsz.xiaolanshu.note.biz.enums.NoteOperateEnum;
 import com.wsz.xiaolanshu.note.biz.mapper.NoteDOMapper;
+import com.wsz.xiaolanshu.note.biz.rpc.CountRpcService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.SendCallback;
@@ -20,6 +22,8 @@ import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
+
+import java.util.Objects;
 
 /**
  * Description
@@ -41,6 +45,14 @@ public class PublishNote2DBLocalTransactionListener implements RocketMQLocalTran
     @Resource
     private RocketMQTemplate rocketMQTemplate;
 
+    @Resource
+    private CountRpcService countRpcService;
+
+    /**
+     * 定义大V粉丝数阈值 (这里可抽取至分布式配置中心)
+     */
+    private static final long BIG_V_FANS_THRESHOLD = 10000L;
+
     /**
      * 执行本地事务
      * @param msg
@@ -59,10 +71,27 @@ public class PublishNote2DBLocalTransactionListener implements RocketMQLocalTran
         Long noteId = publishNoteDTO.getId();
         Long creatorId = publishNoteDTO.getCreatorId();
 
-        // 删除个人主页 - 已发布笔记列表缓存
-        // TODO: 应采取灵活的策略，如果是大V, 应该直接更新缓存，而不是直接删除；普通用户则可直接删除
+        // 个人主页 - 已发布笔记列表缓存 Key
         String publishedNoteListRedisKey = RedisConstants.buildPublishedNoteListKey(creatorId);
-        redisTemplate.delete(publishedNoteListRedisKey);
+
+        // RPC: 获取用户统计信息，判断是否为大V
+        FindUserCountsByIdRspDTO userCounts = countRpcService.findUserCountsById(creatorId);
+        boolean isBigV = Objects.nonNull(userCounts)
+                && Objects.nonNull(userCounts.getFansTotal())
+                && userCounts.getFansTotal() >= BIG_V_FANS_THRESHOLD;
+
+        // 【针对大V采取灵活策略：大V更新缓存，普通用户删除缓存
+        if (isBigV) {
+            // 大V: 直接更新缓存，将新发布的笔记追加到 ZSet 列表头部（Score 为当前时间戳）
+            // 注意: 只在缓存本身已存在时追加，避免缓存未预热导致创建脏数据
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(publishedNoteListRedisKey))) {
+                redisTemplate.opsForZSet().add(publishedNoteListRedisKey, String.valueOf(noteId), System.currentTimeMillis());
+                log.info("## 发现大V发布笔记，直接更新 Redis 缓存...");
+            }
+        } else {
+            // 普通用户: 直接删除缓存，等待下一次用户拉取时重建
+            redisTemplate.delete(publishedNoteListRedisKey);
+        }
 
         // 2. 执行本地事务（如数据库操作）
         try {
@@ -77,7 +106,11 @@ public class PublishNote2DBLocalTransactionListener implements RocketMQLocalTran
         }
 
         // 延迟双删：发送延迟消息
-        sendDelayDeleteRedisPublishedNoteListCacheMQ(creatorId);
+        // 大V是更新策略，且前面已直接对 ZSet 进行追加操作，不需要延迟删除，否则会把辛苦追加的缓存删掉
+        // 因此延迟双删只针对普通用户生效
+        if (!isBigV) {
+            sendDelayDeleteRedisPublishedNoteListCacheMQ(creatorId);
+        }
 
         // 发送 MQ
         // 构建消息体 DTO
@@ -128,7 +161,7 @@ public class PublishNote2DBLocalTransactionListener implements RocketMQLocalTran
                     }
                 },
                 3000, // 超时时间
-                1 // 延迟级别，1 表示延时 1s
+                1 // 延迟级别，1 表示延时 1s (注意：RocketMQ 的延迟级别 1为1s, 2为5s, 3为10s等)
         );
     }
 
@@ -153,7 +186,5 @@ public class PublishNote2DBLocalTransactionListener implements RocketMQLocalTran
 
         // 3. 返回最终状态
         return count == 1 ? RocketMQLocalTransactionState.COMMIT : RocketMQLocalTransactionState.ROLLBACK;
-
     }
-
 }

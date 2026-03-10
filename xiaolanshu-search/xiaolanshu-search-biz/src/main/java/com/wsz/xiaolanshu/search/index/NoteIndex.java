@@ -57,7 +57,7 @@ public class NoteIndex {
     /**
      * 发布者昵称
      */
-    public static final String FIELD_NOTE_NICKNAME = "nickname";
+    public static final String FIELD_NOTE_NICKNAME = "creator_nickname";
 
     /**
      * 发布者头像

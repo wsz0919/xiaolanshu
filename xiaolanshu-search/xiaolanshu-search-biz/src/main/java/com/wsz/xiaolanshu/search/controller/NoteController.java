@@ -44,7 +44,7 @@ public class NoteController {
         return noteService.rebuildDocument(rebuildNoteDocumentReqDTO);
     }
 
-    @PostMapping("/document/searchByIds")
+    @PostMapping("/note/document/searchByIds")
     public Response<List<SearchNoteDTO>> searchNotesByIds(@RequestBody List<Long> noteIds) {
         return noteService.searchNotesByIds(noteIds);
     }
