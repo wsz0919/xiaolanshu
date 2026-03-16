@@ -257,7 +257,7 @@ public class UserServiceImpl implements UserService {
         // Long xiaohashuId = redisTemplate.opsForValue().increment(RedisConstants.XIAOLANSHU_ID_GENERATOR_KEY);
 
         // RPC: 调用分布式 ID 生成服务生成小哈书 ID
-        String xiaohashuId = distributedIdGeneratorRpcService.getXiaohashuId();
+        String xiaolanshuId = distributedIdGeneratorRpcService.getXiaohashuId();
 
         // RPC: 调用分布式 ID 生成服务生成用户 ID
         String userIdStr = distributedIdGeneratorRpcService.getUserId();
@@ -266,8 +266,8 @@ public class UserServiceImpl implements UserService {
         UserDO userDO = UserDO.builder()
                 .id(userId)
                 .phone(phone)
-                .xiaolanshuId(xiaohashuId) // 自动生成小红书号 ID
-                .nickname("小蓝薯" + xiaohashuId) // 自动生成昵称, 如：小红薯10000
+                .xiaolanshuId(xiaolanshuId) // 自动生成小红书号 ID
+                .nickname("小蓝薯" + xiaolanshuId) // 自动生成昵称, 如：小红薯10000
                 .status(StatusEnum.ENABLE.getValue()) // 状态为启用
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())

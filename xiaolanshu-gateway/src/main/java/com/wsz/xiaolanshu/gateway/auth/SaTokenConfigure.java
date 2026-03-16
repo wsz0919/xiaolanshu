@@ -27,7 +27,18 @@ public class SaTokenConfigure {
                 // 拦截地址
                 .addInclude("/**")    /* 拦截全部path */
                 // 开放地址
-                .addExclude("/favicon.ico")
+                .addExclude(
+                        "/",             // 放行根路径（最重要！）
+                        "/index.html",          // 放行index.html
+                        "/favicon.ico",         // 放行图标
+                        "/discover",            // 放行discover页面
+                        "/assets/**",           // 放行assets目录下的所有文件
+                        "/css/**",              // 放行CSS文件
+                        "/js/**",               // 放行JS文件
+                        "/img/**",              // 放行图片
+                        "/fonts/**",            // 放行字体文件
+                        "/public/**"            // 放行public目录
+                )
                 // 鉴权方法：每次访问进入
                 .setAuth(obj -> {
                     // 登录校验 -- 拦截所有路由，并排除/user/doLogin 用于开放登录
@@ -37,6 +48,10 @@ public class SaTokenConfigure {
                             .notMatch("/user/user/profile")
                             .notMatch("/note/channel/list")
                             .notMatch("/note/discover/note/list")
+                            .notMatch("/note/note/detail")
+                            .notMatch("/comment/comment/list")
+                            .notMatch("/note/note/isLikedAndCollectedData")
+                            .notMatch("/comment/comment/child/list")
                             .check(r -> StpUtil.checkLogin()); // 校验是否登录
 
 
