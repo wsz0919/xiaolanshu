@@ -143,4 +143,13 @@
     from t_role
     where status = 0 and is_deleted = 0
   </select>
+  <select id="selectRoleKeysByUserId" resultType="java.lang.String">
+    SELECT r.role_key
+    FROM t_role r
+    INNER JOIN t_user_role_rel urr ON r.id = urr.role_id
+    WHERE urr.user_id = #{userId}
+      AND urr.is_deleted = 0
+      AND r.is_deleted = 0
+      AND r.status = 0
+  </select>
 </mapper>

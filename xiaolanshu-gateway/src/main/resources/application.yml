@@ -52,6 +52,12 @@ spring:
             - Path=/notice/**
           filters:
             - StripPrefix=1
+        - id: report
+          uri: lb://xiaolanshu-report
+          predicates:
+            - Path=/report/**, /admin/report/**
+          filters:
+            - StripPrefix=1
   data:
     redis:
       database: 0 # Redis 数据库索引（默认为 0）

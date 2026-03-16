@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.auth.service.impl;
 
 import cn.dev33.satoken.stp.SaTokenInfo;
 import com.wsz.framework.biz.context.holder.LoginUserContextHolder;
+import com.wsz.framework.common.util.JsonUtils;
 import com.wsz.xiaolanshu.auth.rpc.UserRpcService;
 import cn.dev33.satoken.stp.StpUtil;
 import com.google.common.base.Preconditions;
@@ -22,7 +23,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Description
@@ -125,6 +128,10 @@ public class AuthServiceImpl implements AuthService {
 
         // SaToken 登录用户，并返回 token 令牌
         StpUtil.login(userId);
+
+        List<String> roleKeys = userRpcService.getRoleKeys(userId);
+        String userRolesKey = RedisConstants.buildUserRoleKey(userId);
+        redisTemplate.opsForValue().set(userRolesKey, com.wsz.framework.common.util.JsonUtils.toJsonString(roleKeys), 30, TimeUnit.DAYS);
 
         // 获取 token 令牌
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();

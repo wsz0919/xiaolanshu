@@ -1,16 +1,17 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.wsz</groupId>
-        <artifactId>xiaolanshu-user</artifactId>
+        <artifactId>xiaolanshu</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <!-- 打包方式 -->
     <packaging>jar</packaging>
 
-    <artifactId>xiaolanshu-user-biz</artifactId>
+    <artifactId>xiaolanshu-report</artifactId>
     <name>${project.artifactId}</name>
     <description>用户服务业务模块</description>
 
@@ -23,12 +24,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
@@ -79,12 +74,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.wsz</groupId>
-            <artifactId>xiaolanshu-oss-api</artifactId>
-        </dependency>
-
-        <!-- Redis -->
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
@@ -96,50 +85,15 @@
         </dependency>
 
         <dependency>
-            <groupId>com.wsz</groupId>
-            <artifactId>xiaolanshu-user-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.wsz</groupId>
-            <artifactId>xiaolanshu-distributed-id-generator-api</artifactId>
-        </dependency>
-
-        <!-- Caffeine 本地缓存 -->
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.wsz</groupId>
-            <artifactId>xiaolanshu-count-api</artifactId>
-        </dependency>
-
-        <!-- Rocket MQ -->
-        <dependency>
-            <groupId>org.apache.rocketmq</groupId>
-            <artifactId>rocketmq-spring-boot-starter</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot3-starter</artifactId>
         </dependency>
 
+        <!-- OpenFeign -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <!-- 代码生成器 -->
-            <plugin>
-                <groupId>org.mybatis.generator</groupId>
-                <artifactId>mybatis-generator-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>

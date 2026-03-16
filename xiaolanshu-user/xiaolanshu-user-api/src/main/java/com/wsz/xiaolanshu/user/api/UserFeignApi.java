@@ -5,9 +5,11 @@ import com.wsz.xiaolanshu.user.constant.ApiConstants;
 import com.wsz.xiaolanshu.user.dto.req.*;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
+import com.wsz.xiaolanshu.user.dto.resp.FindUserRoleAndPermissionRspDTO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -70,4 +72,10 @@ public interface UserFeignApi {
 
     @PostMapping(value = PREFIX + "/findTopUsers")
     Response<List<FindUserByIdRspDTO>> findTopUsers(@RequestBody FindUserTopReqVO vo);
+
+    /**
+     * 根据用户ID获取角色标识集合
+     */
+    @PostMapping(value = PREFIX + "/roles")
+    Response<List<String>> getRoleKeys(@RequestParam("userId") Long userId);
 }

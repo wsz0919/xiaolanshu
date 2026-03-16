@@ -35,6 +35,7 @@
         <module>xiaolanshu-search</module>
         <module>xiaolanshu-comment</module>
         <module>xiaolanshu-notice</module>
+        <module>xiaolanshu-report</module>
     </modules>
 
     <properties>

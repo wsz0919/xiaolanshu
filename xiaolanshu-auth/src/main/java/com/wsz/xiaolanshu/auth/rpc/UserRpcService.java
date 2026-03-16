@@ -9,6 +9,9 @@ import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Description
  *
@@ -70,5 +73,16 @@ public class UserRpcService {
         updateUserPasswordReqDTO.setEncodePassword(encodePassword);
 
         userFeignApi.updatePassword(updateUserPasswordReqDTO);
+    }
+
+    /**
+     * 获取用户角色标识
+     */
+    public List<String> getRoleKeys(Long userId) {
+        Response<List<String>> response = userFeignApi.getRoleKeys(userId);
+        if (!response.isSuccess()) {
+            return new ArrayList<>();
+        }
+        return response.getData();
     }
 }

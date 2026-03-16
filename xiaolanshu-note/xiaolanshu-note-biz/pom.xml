@@ -137,9 +137,15 @@
             <groupId>com.wsz</groupId>
             <artifactId>xiaolanshu-oss-api</artifactId>
         </dependency>
+
         <dependency>
             <groupId>com.wsz</groupId>
             <artifactId>xiaolanshu-search-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
         </dependency>
 
     </dependencies>

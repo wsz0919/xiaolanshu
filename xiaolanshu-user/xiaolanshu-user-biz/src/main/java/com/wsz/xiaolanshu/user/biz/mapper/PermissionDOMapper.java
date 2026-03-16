@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.user.biz.mapper;
 
 import com.wsz.xiaolanshu.user.biz.domain.dataobject.PermissionDO;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -24,4 +25,8 @@ public interface PermissionDOMapper {
      */
     List<PermissionDO> selectAppEnabledList();
 
+    /**
+     * 根据用户ID查询权限标识集合
+     */
+    List<String> selectPermissionKeysByUserId(@Param("userId") Long userId);
 }

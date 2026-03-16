@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.user.biz.mapper;
 
 import com.wsz.xiaolanshu.user.biz.domain.dataobject.RoleDO;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -23,4 +24,9 @@ public interface RoleDOMapper {
      * @return
      */
     List<RoleDO> selectEnabledList();
+
+    /**
+     * 根据用户ID查询角色标识集合
+     */
+    List<String> selectRoleKeysByUserId(@Param("userId") Long userId);
 }

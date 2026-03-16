@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wsz.xiaolanshu.report.mapper.ReportDOMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_report (
+            reporter_id, target_type, target_id, report_reason, report_detail, images, status
+        ) VALUES (
+                     #{reporterId}, #{targetType}, #{targetId}, #{reportReason}, #{reportDetail}, #{images}, 0
+                 )
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE t_report
+        SET status = #{status},
+            processor_id = #{processorId},
+            process_remark = #{processRemark},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

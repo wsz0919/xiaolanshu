@@ -699,4 +699,10 @@ public class UserServiceImpl implements UserService {
         List<FindUserByIdRspDTO> userDOS = userDOMapper.selectTopUsers(vo.getLimit());
         return Response.success(userDOS);
     }
+
+    @Override
+    public Response<List<String>> getUserRoleKeys(Long userId) {
+        List<String> roleKeys = roleDOMapper.selectRoleKeysByUserId(userId);
+        return Response.success(roleKeys);
+    }
 }
