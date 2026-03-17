@@ -63,6 +63,12 @@ public class SaTokenConfigure {
                     // SaRouter.match("/goods/**", r -> StpUtil.checkPermission("goods"));
                     // SaRouter.match("/orders/**", r -> StpUtil.checkPermission("orders"));
 
+                    // 在原有的 StpUtil.checkLogin(); 之后加入：
+                    SaRouter.match("/admin/**", r -> {
+                        // 强制校验必须具备以下角色之一才能访问后台 API
+                        StpUtil.checkRoleOr("super_admin", "operation_admin");
+                    });
+
                     // 更多匹配 ...  */
                 })
                 .setError(e -> {

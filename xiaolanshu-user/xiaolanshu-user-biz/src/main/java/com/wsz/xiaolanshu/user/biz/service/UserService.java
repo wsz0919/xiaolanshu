@@ -8,9 +8,11 @@ import com.wsz.xiaolanshu.user.biz.domain.vo.UpdateUserInfoReqVO;
 import com.wsz.xiaolanshu.user.dto.req.*;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Description
@@ -81,4 +83,6 @@ public interface UserService {
     Response<List<FindUserByIdRspDTO>> findTopUsers(FindUserTopReqVO vo);
 
     Response<List<String>> getUserRoleKeys(@RequestParam("userId") Long userId);
+
+    Response<?> banUser(@RequestBody Map<String, Object> params);
 }

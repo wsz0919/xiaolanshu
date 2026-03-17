@@ -1,5 +1,6 @@
 package com.wsz.xiaolanshu.user.biz.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -704,5 +705,22 @@ public class UserServiceImpl implements UserService {
     public Response<List<String>> getUserRoleKeys(Long userId) {
         List<String> roleKeys = roleDOMapper.selectRoleKeysByUserId(userId);
         return Response.success(roleKeys);
+    }
+
+    @Override
+    public Response<?> banUser(Map<String, Object> params) {
+        Long userId = Long.valueOf(params.get("userId").toString());
+        int status = Integer.parseInt(params.get("status").toString()); // 0:正常 1:封禁
+
+        UserDO userDO = new UserDO();
+        userDO.setId(userId);
+        userDO.setStatus(status);
+        userDOMapper.updateByPrimaryKeySelective(userDO);
+
+        // 【核心】如果是封禁操作，强制踢该用户下线
+        if (status == 1) {
+            StpUtil.kickout(userId);
+        }
+        return Response.success(status == 1 ? "封禁成功" : "解封成功");
     }
 }

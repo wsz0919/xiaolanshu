@@ -176,7 +176,7 @@
   </update>
   <select id="selectAppEnabledList" resultMap="BaseResultMap">
     select id, name, permission_key from t_permission
-    where status = 0 and type = 3 and is_deleted = 0
+    where status = 0 and is_deleted = 0
   </select>
   <select id="selectPermissionKeysByUserId" resultType="java.lang.String">
     SELECT DISTINCT p.permission_key

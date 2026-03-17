@@ -2,7 +2,10 @@ package com.wsz.xiaolanshu.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
+import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
+import com.wsz.xiaolanshu.report.domain.dataobject.ReportDO;
+import com.wsz.xiaolanshu.report.domain.vo.FindReportPageListReqVO;
 import com.wsz.xiaolanshu.report.domain.vo.ProcessReportReqVO;
 import com.wsz.xiaolanshu.report.service.ReportService;
 import jakarta.annotation.Resource;
@@ -30,5 +33,12 @@ public class AdminReportController {
     @SaCheckPermission(value = "admin:report:process", orRole = "super_admin")
     public Response<?> processReport(@Validated @RequestBody ProcessReportReqVO reqVO) {
         return reportService.processReport(reqVO);
+    }
+
+    @PostMapping("/page")
+    @ApiOperationLog(description = "分页查询举报列表")
+    @SaCheckPermission(value = "admin:report:list", orRole = "super_admin")
+    public PageResponse<ReportDO> getReportPageList(@Validated @RequestBody FindReportPageListReqVO reqVO) {
+        return reportService.findReportPageList(reqVO);
     }
 }

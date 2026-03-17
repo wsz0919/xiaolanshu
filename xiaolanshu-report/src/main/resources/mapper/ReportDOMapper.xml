@@ -19,4 +19,56 @@
         WHERE id = #{id}
     </update>
 
+    <insert id="insertSelective" useGeneratedKeys="true" keyProperty="id" parameterType="com.wsz.xiaolanshu.report.domain.dataobject.ReportDO">
+        INSERT INTO t_report
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="reporterId != null">reporter_id,</if>
+            <if test="targetType != null">target_type,</if>
+            <if test="targetId != null">target_id,</if>
+            <if test="reportReason != null">report_reason,</if>
+            <if test="reportDetail != null">report_detail,</if>
+            <if test="images != null">images,</if>
+            <if test="status != null">status,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="reporterId != null">#{reporterId},</if>
+            <if test="targetType != null">#{targetType},</if>
+            <if test="targetId != null">#{targetId},</if>
+            <if test="reportReason != null">#{reportReason},</if>
+            <if test="reportDetail != null">#{reportDetail},</if>
+            <if test="images != null">#{images},</if>
+            <if test="status != null">#{status},</if>
+        </trim>
+    </insert>
+
+    <update id="updateByPrimaryKeySelective" parameterType="com.wsz.xiaolanshu.report.domain.dataobject.ReportDO">
+        UPDATE t_report
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="processRemark != null">process_remark = #{processRemark},</if>
+            <if test="processorId != null">processor_id = #{processorId},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByPrimaryKey" resultType="com.wsz.xiaolanshu.report.domain.dataobject.ReportDO">
+        SELECT * FROM t_report WHERE id = #{id}
+    </select>
+
+    <select id="selectPageList" resultType="com.wsz.xiaolanshu.report.domain.dataobject.ReportDO">
+        SELECT * FROM t_report
+        <where>
+            <if test="status != null"> AND status = #{status} </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*) FROM t_report
+        <where>
+            <if test="status != null"> AND status = #{status} </if>
+        </where>
+    </select>
 </mapper>
