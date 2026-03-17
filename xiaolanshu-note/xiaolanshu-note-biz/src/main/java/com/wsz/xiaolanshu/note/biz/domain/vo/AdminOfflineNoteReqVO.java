@@ -4,17 +4,17 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * Description
+ * 管理员下架笔记请求参数
  *
  * @Author wangshaozhe
- * @Date 2026-03-16 10:28
+ * @Date 2026-03-17 14:00
  * @Company:
  */
 @Data
 public class AdminOfflineNoteReqVO {
+    /**
+     * 笔记ID
+     */
     @NotNull(message = "笔记ID不能为空")
     private Long noteId;
-
-    // 可以加一个下架原因字段，后续做通知用
-    private String reason;
 }

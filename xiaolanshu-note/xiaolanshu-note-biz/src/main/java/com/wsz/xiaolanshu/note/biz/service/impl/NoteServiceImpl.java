@@ -211,6 +211,7 @@ public class NoteServiceImpl implements NoteService {
                 .status(NoteStatusEnum.NORMAL.getCode())
                 .isTop(Boolean.FALSE)
                 .videoUri(videoUri)
+                .status(0)
                 .contentUuid(contentUuid)
                 .build();
 
