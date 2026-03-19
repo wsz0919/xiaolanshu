@@ -404,6 +404,7 @@ public class UserServiceImpl implements UserService {
                 .nickName(userDO.getNickname())
                 .avatar(userDO.getAvatar())
                 .introduction(userDO.getIntroduction())
+                .status(userDO.getStatus())
                 .build();
 
         // 异步将用户信息存入 Redis 缓存，提升响应速度

@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.auth.service.impl;
 
 import cn.dev33.satoken.stp.SaTokenInfo;
 import com.wsz.framework.biz.context.holder.LoginUserContextHolder;
+import com.wsz.framework.common.enums.StatusEnum;
 import com.wsz.framework.common.util.JsonUtils;
 import com.wsz.xiaolanshu.auth.rpc.UserRpcService;
 import cn.dev33.satoken.stp.StpUtil;
@@ -124,6 +125,13 @@ public class AuthServiceImpl implements AuthService {
                 break;
             default:
                 break;
+        }
+
+        var userInfo = userRpcService.findById(userId);
+        if (Objects.nonNull(userInfo) && StatusEnum.DISABLED.getValue().equals(userInfo.getStatus())) {
+            // 抛出业务异常，阻止发放 Token
+            throw new BizException(ResponseCodeEnum.UNAUTHORIZED);
+            // 规范点可以使用 throw new BizException(ResponseCodeEnum.USER_BANNED);
         }
 
         // SaToken 登录用户，并返回 token 令牌

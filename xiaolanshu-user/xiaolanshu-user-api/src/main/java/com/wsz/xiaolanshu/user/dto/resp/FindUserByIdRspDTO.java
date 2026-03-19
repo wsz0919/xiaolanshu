@@ -38,5 +38,9 @@ public class FindUserByIdRspDTO {
      */
     private String introduction;
 
+    /**
+     * 是/否禁用状态
+     */
+    private Integer status;
 }
 

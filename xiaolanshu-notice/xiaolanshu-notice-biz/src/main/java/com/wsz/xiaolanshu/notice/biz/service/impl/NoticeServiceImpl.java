@@ -306,7 +306,7 @@ public class NoticeServiceImpl implements NoticeService {
         }
 
         // 处理图片
-        String imgUris = note.getImgUris().toString(); // 假设返回 String
+        String imgUris = note.getImgUris().toString();
         if (StringUtils.isNotBlank(imgUris) && !"null".equals(imgUris)) {
             // 去除可能的 JSON 数组方括号
             String trimmed = imgUris.trim();

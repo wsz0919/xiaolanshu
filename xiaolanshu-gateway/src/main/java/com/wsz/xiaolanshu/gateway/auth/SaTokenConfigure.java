@@ -1,5 +1,6 @@
 package com.wsz.xiaolanshu.gateway.auth;
 
+import cn.dev33.satoken.exception.DisableServiceException;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
@@ -52,7 +53,10 @@ public class SaTokenConfigure {
                             .notMatch("/comment/comment/list")
                             .notMatch("/note/note/isLikedAndCollectedData")
                             .notMatch("/comment/comment/child/list")
-                            .check(r -> StpUtil.checkLogin()); // 校验是否登录
+                            .check(r -> {
+                                StpUtil.checkLogin();
+                                StpUtil.checkDisable(StpUtil.getLoginIdAsLong());
+                            }); // 校验是否登录
 
 
                     // 权限认证 -- 不同模块, 校验不同权限
@@ -76,6 +80,9 @@ public class SaTokenConfigure {
                     // 手动抛出异常，抛给全局异常处理器
                     if (e instanceof NotLoginException) { // 未登录异常
                         throw new NotLoginException(e.getMessage(), null, null);
+                    } else if (e instanceof DisableServiceException) {
+                        // 新增：拦截到被封禁的账号抛出 DisableServiceException，统一转换为权限异常或自定义提示
+                        throw new NotPermissionException("您的账号已被封禁，禁止任何操作！");
                     } else if (e instanceof NotPermissionException || e instanceof NotRoleException) { // 权限不足，或不具备角色，统一抛出权限不足异常
                         throw new NotPermissionException(e.getMessage());
                     } else { // 其他异常，则抛出一个运行时异常

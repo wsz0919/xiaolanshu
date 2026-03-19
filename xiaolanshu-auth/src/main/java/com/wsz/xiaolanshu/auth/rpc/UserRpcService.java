@@ -2,15 +2,18 @@ package com.wsz.xiaolanshu.auth.rpc;
 
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.api.UserFeignApi;
+import com.wsz.xiaolanshu.user.dto.req.FindUserByIdReqDTO;
 import com.wsz.xiaolanshu.user.dto.req.FindUserByPhoneReqDTO;
 import com.wsz.xiaolanshu.user.dto.req.RegisterUserReqDTO;
 import com.wsz.xiaolanshu.user.dto.req.UpdateUserPasswordReqDTO;
+import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Description
@@ -83,6 +86,24 @@ public class UserRpcService {
         if (!response.isSuccess()) {
             return new ArrayList<>();
         }
+        return response.getData();
+    }
+
+    /**
+     * 查询用户信息
+     * @param userId
+     * @return
+     */
+    public FindUserByIdRspDTO findById(Long userId) {
+        FindUserByIdReqDTO findUserByIdReqDTO = new FindUserByIdReqDTO();
+        findUserByIdReqDTO.setId(userId);
+
+        Response<FindUserByIdRspDTO> response = userFeignApi.findById(findUserByIdReqDTO);
+
+        if (Objects.isNull(response) || !response.isSuccess()) {
+            return null;
+        }
+
         return response.getData();
     }
 }

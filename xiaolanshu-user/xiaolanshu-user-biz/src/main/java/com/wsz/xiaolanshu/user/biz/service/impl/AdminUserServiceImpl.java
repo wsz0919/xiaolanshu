@@ -52,6 +52,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (reqVO.getStatus() == 1) {
             // 通过 Sa-Token 踢出当前被封禁的用户
             StpUtil.kickout(reqVO.getId());
+            StpUtil.disable(reqVO.getId(), -1);
             log.info("已封禁并踢出用户 ID: {}", reqVO.getId());
         }
 
