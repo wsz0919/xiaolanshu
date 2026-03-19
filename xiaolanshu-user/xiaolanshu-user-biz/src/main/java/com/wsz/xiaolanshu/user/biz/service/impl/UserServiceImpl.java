@@ -526,6 +526,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Response<FindUserProfileRspVO> findUserProfile(FindUserProfileReqVO findUserProfileReqVO) {
+        UserDO userDO = userDOMapper.selectByPrimaryKey(findUserProfileReqVO.getUserId());
+
+        // 位运算校验 32 (BAN_PROFILE_ACCESS)
+        if (userDO != null && (userDO.getStatus() & 32) == 32) {
+            throw new BizException(ResponseCodeEnum.NOT_VISIBLE);
+        }
+
         // 要查询的用户 ID
         Long userId = findUserProfileReqVO.getUserId();
 
@@ -559,7 +566,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 3. 再查询数据库
-        UserDO userDO = userMapper.selectByPrimaryKey(userId);
+        userDO = userMapper.selectByPrimaryKey(userId);
 
         if (Objects.isNull(userDO)) {
             throw new BizException(ResponseCodeEnum.USER_NOT_FOUND);

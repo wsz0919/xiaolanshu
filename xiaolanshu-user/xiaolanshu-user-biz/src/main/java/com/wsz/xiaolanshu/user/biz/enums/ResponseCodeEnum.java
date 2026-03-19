@@ -28,6 +28,7 @@ public enum ResponseCodeEnum implements BaseExceptionInterface {
     USER_NOT_FOUND("USER-20007", "该用户不存在"),
     CANT_UPDATE_OTHER_USER_PROFILE("USER-20008", "无权限修改他人用户信息"),
     XIAOLANSHU_ID_ALREADY_EXIST("USER-20009", "该小蓝书号已被占用，请换一个重试"),
+    NOT_VISIBLE("USER-20010", "该用户账号存在异常，主页暂不可见"),
     ;
 
     // 异常码

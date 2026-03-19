@@ -21,74 +21,78 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @Slf4j
 public class SaTokenConfigure {
-    // 注册 Sa-Token全局过滤器
+
     @Bean
     public SaReactorFilter getSaReactorFilter() {
         return new SaReactorFilter()
-                // 拦截地址
-                .addInclude("/**")    /* 拦截全部path */
-                // 开放地址
+                .addInclude("/**")
                 .addExclude(
-                        "/",             // 放行根路径（最重要！）
-                        "/index.html",          // 放行index.html
-                        "/favicon.ico",         // 放行图标
-                        "/discover",            // 放行discover页面
-                        "/assets/**",           // 放行assets目录下的所有文件
-                        "/css/**",              // 放行CSS文件
-                        "/js/**",               // 放行JS文件
-                        "/img/**",              // 放行图片
-                        "/fonts/**",            // 放行字体文件
-                        "/public/**"            // 放行public目录
+                        "/", "/index.html", "/favicon.ico", "/discover", "/assets/**",
+                        "/css/**", "/js/**", "/img/**", "/fonts/**", "/public/**"
                 )
-                // 鉴权方法：每次访问进入
                 .setAuth(obj -> {
-                    // 登录校验 -- 拦截所有路由，并排除/user/doLogin 用于开放登录
-                    SaRouter.match("/**") // 拦截所有路由
-                            .notMatch("/auth/login") // 排除登录接口
-                            .notMatch("/auth/verification/code/send") // 排除验证码发送接口
-                            .notMatch("/user/user/profile")
-                            .notMatch("/note/channel/list")
-                            .notMatch("/note/discover/note/list")
-                            .notMatch("/note/note/detail")
-                            .notMatch("/comment/comment/list")
-                            .notMatch("/note/note/isLikedAndCollectedData")
-                            .notMatch("/comment/comment/child/list")
+                    // 1. 基础登录与全局封禁校验
+                    SaRouter.match("/**")
+                            .notMatch("/auth/login", "/auth/verification/code/send",
+                                    "/user/user/profile", "/note/channel/list",
+                                    "/note/discover/note/list", "/note/note/detail",
+                                    "/comment/comment/list", "/note/note/isLikedAndCollectedData",
+                                    "/comment/comment/child/list")
                             .check(r -> {
                                 StpUtil.checkLogin();
-                                StpUtil.checkDisable(StpUtil.getLoginIdAsLong());
-                            }); // 校验是否登录
+                                StpUtil.checkDisable(StpUtil.getLoginIdAsLong()); // 校验全局封禁
+                            });
 
+                    // ================== 细粒度分类封禁校验 ==================
+                    long userId = StpUtil.getLoginIdAsLong();
 
-                    // 权限认证 -- 不同模块, 校验不同权限
-                    // SaRouter.match("/auth/user/logout", r -> StpUtil.checkPermission("user"));
-                    // SaRouter.match("/auth/user/logout", r -> StpUtil.checkRole("admin"));
-                    SaRouter.match("/auth/logout", r -> StpUtil.checkPermission("app:note:publish"));
-                    // SaRouter.match("/admin/**", r -> StpUtil.checkPermission("admin"));
-                    // SaRouter.match("/goods/**", r -> StpUtil.checkPermission("goods"));
-                    // SaRouter.match("/orders/**", r -> StpUtil.checkPermission("orders"));
+                    // 2. 校验：禁止发布/编辑笔记
+                    // (请根据你实际的 Controller 路由地址调整)
+                    SaRouter.match("/note/note/publish", "/note/note/update")
+                            .check(r -> StpUtil.checkDisable(userId, "publish_note"));
 
-                    // 在原有的 StpUtil.checkLogin(); 之后加入：
-                    SaRouter.match("/admin/**", r -> {
-                        // 强制校验必须具备以下角色之一才能访问后台 API
-                        StpUtil.checkRoleOr("super_admin", "operation_admin");
-                    });
+                    // 3. 校验：禁止发布评论
+                    SaRouter.match("/comment/comment/publish")
+                            .check(r -> StpUtil.checkDisable(userId, "publish_comment"));
 
-                    // 更多匹配 ...  */
+                    // 4. 校验：禁止点赞/收藏
+                    SaRouter.match("/note/note/like", "/note/note/unlike",
+                                    "/note/note/collect", "/note/note/uncollect",
+                                    "/comment/comment/like", "/comment/comment/unlike")
+                            .check(r -> StpUtil.checkDisable(userId, "like_collect"));
+
+                    // 5. 校验：禁止修改个人资料
+                    SaRouter.match("/user/user/update")
+                            .check(r -> StpUtil.checkDisable(userId, "update_profile"));
+
+                    // 后台角色校验等...
+                    SaRouter.match("/admin/**", r -> StpUtil.checkRoleOr("super_admin", "operation_admin"));
                 })
                 .setError(e -> {
-                    // return SaResult.error(e.getMessage());
-                    // 手动抛出异常，抛给全局异常处理器
-                    if (e instanceof NotLoginException) { // 未登录异常
+                    if (e instanceof NotLoginException) {
                         throw new NotLoginException(e.getMessage(), null, null);
                     } else if (e instanceof DisableServiceException) {
-                        // 新增：拦截到被封禁的账号抛出 DisableServiceException，统一转换为权限异常或自定义提示
-                        throw new NotPermissionException("您的账号已被封禁，禁止任何操作！");
-                    } else if (e instanceof NotPermissionException || e instanceof NotRoleException) { // 权限不足，或不具备角色，统一抛出权限不足异常
+                        // ================== 捕获分类封禁异常并提示 ==================
+                        DisableServiceException de = (DisableServiceException) e;
+                        String service = (String) de.getService();
+
+                        switch (service) {
+                            case "publish_note":
+                                throw new NotPermissionException("您的账号已被限制发布和编辑笔记！");
+                            case "publish_comment":
+                                throw new NotPermissionException("您的账号已被限制发表评论！");
+                            case "like_collect":
+                                throw new NotPermissionException("您的账号已被限制进行互动（点赞/收藏）！");
+                            case "update_profile":
+                                throw new NotPermissionException("您的账号已被限制修改个人资料！");
+                            default:
+                                throw new NotPermissionException("您的账号已被封禁，禁止任何操作！");
+                        }
+                    } else if (e instanceof NotPermissionException || e instanceof NotRoleException) {
                         throw new NotPermissionException(e.getMessage());
-                    } else { // 其他异常，则抛出一个运行时异常
+                    } else {
                         throw new RuntimeException(e.getMessage());
                     }
                 });
-
     }
 }
