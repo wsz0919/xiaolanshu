@@ -322,8 +322,6 @@ public class CanalSchedule implements Runnable {
 
         // 遍历查询结果，将每条记录同步到 Elasticsearch
         for (Map<String, Object> recordMap : result) {
-            recordMap.put("cover", null);
-            recordMap.put("avatar", null);
             // 创建索引请求对象，指定索引名称
             IndexRequest indexRequest = new IndexRequest(NoteIndex.NAME);
             // 设置文档的 ID，使用记录中的主键 “id” 字段值

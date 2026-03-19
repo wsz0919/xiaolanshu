@@ -3,12 +3,14 @@ package com.wsz.xiaolanshu.note.biz.rpc;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.kv.api.KeyValueFeignApi;
 import com.wsz.xiaolanshu.kv.dto.req.AddNoteContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.BatchFindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.DeleteNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.FindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -81,5 +83,24 @@ public class KeyValueRpcService {
         }
 
         return response.getData().getContent();
+    }
+
+    /**
+     * 批量查询笔记内容
+     *
+     * @param uuids
+     * @return
+     */
+    public List<FindNoteContentRspDTO> findNoteContentBatch(List<String> uuids) {
+        BatchFindNoteContentReqDTO reqDTO = new BatchFindNoteContentReqDTO();
+        reqDTO.setUuids(uuids);
+
+        Response<List<FindNoteContentRspDTO>> response = keyValueFeignApi.findNoteContentBatch(reqDTO);
+
+        if (Objects.isNull(response) || !response.isSuccess() || Objects.isNull(response.getData())) {
+            return null;
+        }
+
+        return response.getData();
     }
 }

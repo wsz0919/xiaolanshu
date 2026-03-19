@@ -305,11 +305,24 @@ public class NoticeServiceImpl implements NoticeService {
             return;
         }
 
-        String image = String.valueOf(note.getImgUris());
-        if (!"null".equals(image) && StringUtils.isNotBlank(image)) {
-            String cover = String.valueOf(note.getImgUris());
-            item.setCover(cover.split(",")[0]);
-        } if (StringUtils.isNotBlank(note.getVideoUri())) {
+        // 处理图片
+        String imgUris = note.getImgUris().toString(); // 假设返回 String
+        if (StringUtils.isNotBlank(imgUris) && !"null".equals(imgUris)) {
+            // 去除可能的 JSON 数组方括号
+            String trimmed = imgUris.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                trimmed = trimmed.substring(1, trimmed.length() - 1);
+            }
+            // 按逗号分割（兼容逗号分隔和JSON数组去括号后的剩余部分）
+            String[] images = trimmed.split(",");
+            if (images.length > 0) {
+                item.setCover(images[0].trim()); // 取第一张并去除空格
+                return; // 已设置封面，避免被视频覆盖
+            }
+        }
+
+        // 无图片时使用视频
+        if (StringUtils.isNotBlank(note.getVideoUri())) {
             item.setCover(note.getVideoUri());
         }
     }

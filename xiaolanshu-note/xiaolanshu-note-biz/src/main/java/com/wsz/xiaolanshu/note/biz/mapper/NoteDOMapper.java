@@ -69,4 +69,6 @@ public interface NoteDOMapper {
                                      @Param("status") Integer status,
                                      @Param("offset") long offset,
                                      @Param("pageSize") long pageSize);
+
+    NoteDO selectByPrimaryToKey(Long id);
 }

@@ -2,9 +2,12 @@ package com.wsz.xiaolanshu.biz.service;
 
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.kv.dto.req.AddNoteContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.BatchFindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.DeleteNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.FindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
+
+import java.util.List;
 
 /**
  * Description
@@ -38,4 +41,12 @@ public interface NoteContentService {
      * @return
      */
     Response<?> deleteNoteContent(DeleteNoteContentReqDTO deleteNoteContentReqDTO);
+
+    /**
+     * 批量查询笔记内容
+     *
+     * @param reqDTO
+     * @return
+     */
+    Response<List<FindNoteContentRspDTO>> findNoteContentBatch(BatchFindNoteContentReqDTO reqDTO);
 }

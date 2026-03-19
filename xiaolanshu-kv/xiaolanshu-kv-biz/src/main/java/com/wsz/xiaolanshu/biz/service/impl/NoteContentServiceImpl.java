@@ -7,6 +7,8 @@ import com.wsz.xiaolanshu.biz.enums.ResponseCodeEnum;
 import com.wsz.xiaolanshu.biz.repository.NoteContentRepository;
 import com.wsz.xiaolanshu.biz.service.NoteContentService;
 import com.wsz.xiaolanshu.kv.dto.req.AddNoteContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.BatchFindNoteContentReqDTO;
+import org.apache.commons.lang3.StringUtils;
 import com.wsz.xiaolanshu.kv.dto.req.DeleteNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.FindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
@@ -14,8 +16,8 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Description
@@ -87,5 +89,47 @@ public class NoteContentServiceImpl implements NoteContentService {
         noteContentRepository.deleteById(UUID.fromString(uuid));
 
         return Response.success();
+    }
+
+    /**
+     * 批量查询笔记内容
+     *
+     * @param reqDTO 批量查询请求参数
+     * @return 笔记内容列表
+     */
+    @Override
+    public Response<List<FindNoteContentRspDTO>> findNoteContentBatch(BatchFindNoteContentReqDTO reqDTO) {
+        List<String> uuids = reqDTO.getUuids();
+
+        // 1. 判空校验
+        if (uuids == null || uuids.isEmpty()) {
+            return Response.success(Collections.emptyList());
+        }
+
+        // 2. 将 String 类型的 UUID 转换为 java.util.UUID 类型，并过滤掉空值
+        List<UUID> uuidList = uuids.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(UUID::fromString)
+                .collect(Collectors.toList());
+
+        if (uuidList.isEmpty()) {
+            return Response.success(Collections.emptyList());
+        }
+
+        // 3. 调用 Repository 的 findAllById 方法进行底层批量查询 (Cassandra/JPA 自带方法)
+        Iterable<NoteContentDO> noteContentDOIterable = noteContentRepository.findAllById(uuidList);
+
+        // 4. 遍历查询结果并转换为返回的 DTO 列表
+        List<FindNoteContentRspDTO> rspDTOList = new ArrayList<>();
+        noteContentDOIterable.forEach(noteContentDO -> {
+            FindNoteContentRspDTO dto = FindNoteContentRspDTO.builder()
+                    .uuid(noteContentDO.getId()) // 这里的 getId() 返回的是 UUID 类型
+                    .content(noteContentDO.getContent())
+                    .build();
+            rspDTOList.add(dto);
+        });
+
+        // 5. 成功返回
+        return Response.success(rspDTOList);
     }
 }

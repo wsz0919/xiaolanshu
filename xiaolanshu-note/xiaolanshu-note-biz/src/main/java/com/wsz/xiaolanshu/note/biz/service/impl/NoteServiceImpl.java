@@ -454,7 +454,7 @@ public class NoteServiceImpl implements NoteService {
                             .creatorName(findUserByIdRspDTO.getNickName())
                             .avatar(findUserByIdRspDTO.getAvatar())
                             .videoUri(noteDO.getVideoUri())
-                            .updateTime(DateUtils.parse2DateStr(noteDO.getUpdateTime()))
+                            .updateTime(DateUtils.formatRelativeTime(noteDO.getUpdateTime()))
                             .visible(noteDO.getVisible())
                             .channelId(noteDO.getChannelId())
                             .likeTotal(Objects.isNull(findNoteCountByIdRspDTO) ? "0" : NumberUtils.formatNumberString(findNoteCountByIdRspDTO.getLikeTotal()))

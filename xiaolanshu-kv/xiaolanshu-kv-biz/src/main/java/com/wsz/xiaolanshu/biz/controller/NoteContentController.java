@@ -3,6 +3,7 @@ package com.wsz.xiaolanshu.biz.controller;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.biz.service.NoteContentService;
 import com.wsz.xiaolanshu.kv.dto.req.AddNoteContentReqDTO;
+import com.wsz.xiaolanshu.kv.dto.req.BatchFindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.DeleteNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.req.FindNoteContentReqDTO;
 import com.wsz.xiaolanshu.kv.dto.resp.FindNoteContentRspDTO;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * Description
@@ -42,5 +45,10 @@ public class NoteContentController {
     @PostMapping(value = "/note/content/delete")
     public Response<?> deleteNoteContent(@Validated @RequestBody DeleteNoteContentReqDTO deleteNoteContentReqDTO) {
         return noteContentService.deleteNoteContent(deleteNoteContentReqDTO);
+    }
+
+    @PostMapping(value = "/note/content/batchFind")
+    public Response<List<FindNoteContentRspDTO>> findNoteContentBatch(@Validated @RequestBody BatchFindNoteContentReqDTO reqDTO) {
+        return noteContentService.findNoteContentBatch(reqDTO);
     }
 }

@@ -44,4 +44,7 @@ public interface KeyValueFeignApi {
 
     @PostMapping(value = PREFIX + "/comment/content/getContent")
     Response<FindCommentContentRspDTO> getCommentByCommentId(@RequestBody FindCommentReqDTO req);
+
+    @PostMapping(value = PREFIX + "/note/content/batchFind")
+    Response<List<FindNoteContentRspDTO>> findNoteContentBatch(@RequestBody BatchFindNoteContentReqDTO reqDTO);
 }

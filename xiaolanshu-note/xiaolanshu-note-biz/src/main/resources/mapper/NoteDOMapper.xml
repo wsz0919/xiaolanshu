@@ -315,4 +315,10 @@
     LIMIT #{offset}, #{pageSize}
   </select>
 
+  <select id="selectByPrimaryToKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_note
+    where id = #{id,jdbcType=BIGINT}
+  </select>
 </mapper>
