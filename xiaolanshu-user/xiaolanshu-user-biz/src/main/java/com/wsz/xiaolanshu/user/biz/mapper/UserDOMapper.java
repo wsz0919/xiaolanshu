@@ -46,4 +46,20 @@ public interface UserDOMapper {
      */
     List<FindUserByIdRspDTO> selectTopUsers(@Param("limit") int limit);
 
+    /**
+     * 后台：根据条件查询用户总数
+     */
+    long selectAdminTotalCount(@Param("phone") String phone,
+                               @Param("xiaolanshuId") String xiaolanshuId,
+                               @Param("status") Integer status);
+
+    /**
+     * 后台：根据条件分页查询用户列表
+     */
+    List<UserDO> selectAdminPageList(@Param("phone") String phone,
+                                     @Param("xiaolanshuId") String xiaolanshuId,
+                                     @Param("status") Integer status,
+                                     @Param("offset") long offset,
+                                     @Param("pageSize") long pageSize);
+
 }

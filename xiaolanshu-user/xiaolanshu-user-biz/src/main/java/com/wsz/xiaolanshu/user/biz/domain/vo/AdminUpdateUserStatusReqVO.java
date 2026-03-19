@@ -13,7 +13,7 @@ import lombok.Data;
 @Data
 public class AdminUpdateUserStatusReqVO {
     @NotNull(message = "用户ID不能为空")
-    private Long userId;
+    private Long id;
 
     @NotNull(message = "状态不能为空")
     private Integer status; // 0:启用 1:禁用

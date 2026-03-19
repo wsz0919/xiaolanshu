@@ -221,6 +221,39 @@
     ORDER BY create_time DESC
       LIMIT #{limit}
   </select>
+  <select id="selectAdminTotalCount" resultType="long">
+    SELECT count(id) FROM t_user
+    <where>
+      <if test="phone != null and phone != ''">
+        AND phone LIKE CONCAT('%', #{phone}, '%')
+      </if>
+      <if test="xiaolanshuId != null and xiaolanshuId != ''">
+        AND xiaolanshu_id LIKE CONCAT('%', #{xiaolanshuId}, '%')
+      </if>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+      AND is_deleted = 0
+    </where>
+  </select>
 
+  <select id="selectAdminPageList" resultMap="BaseResultMap">
+    SELECT id, xiaolanshu_id, nickname, avatar, phone, sex, status, create_time
+    FROM t_user
+    <where>
+      <if test="phone != null and phone != ''">
+        AND phone LIKE CONCAT('%', #{phone}, '%')
+      </if>
+      <if test="xiaolanshuId != null and xiaolanshuId != ''">
+        AND xiaolanshu_id LIKE CONCAT('%', #{xiaolanshuId}, '%')
+      </if>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+      AND is_deleted = 0
+    </where>
+    ORDER BY create_time ASC
+    LIMIT #{offset}, #{pageSize}
+  </select>
 
 </mapper>

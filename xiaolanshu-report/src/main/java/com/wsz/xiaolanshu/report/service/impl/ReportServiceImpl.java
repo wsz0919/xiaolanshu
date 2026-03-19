@@ -1,6 +1,7 @@
 package com.wsz.xiaolanshu.report.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.wsz.framework.biz.context.holder.LoginUserContextHolder;
 import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.report.domain.dataobject.ReportDO;
@@ -24,7 +25,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public Response<?> submitReport(SubmitReportReqVO reqVO) {
-        Long reporterId = StpUtil.getLoginIdAsLong();
+        Long reporterId = LoginUserContextHolder.getUserId();
 
         ReportDO reportDO = ReportDO.builder()
                 .reporterId(reporterId)
@@ -42,7 +43,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public Response<?> processReport(ProcessReportReqVO reqVO) {
-        Long processorId = StpUtil.getLoginIdAsLong();
+        Long processorId = LoginUserContextHolder.getUserId();
 
         ReportDO updateDO = new ReportDO();
         updateDO.setId(reqVO.getReportId());

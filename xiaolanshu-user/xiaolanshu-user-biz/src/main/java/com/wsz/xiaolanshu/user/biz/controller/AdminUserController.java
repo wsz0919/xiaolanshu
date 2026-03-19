@@ -3,10 +3,14 @@ package com.wsz.xiaolanshu.user.biz.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.stp.StpUtil;
 import com.wsz.framework.biz.operationlog.aspect.ApiOperationLog;
+import com.wsz.framework.common.response.PageResponse;
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.user.biz.domain.dataobject.UserDO;
 import com.wsz.xiaolanshu.user.biz.domain.vo.AdminUpdateUserStatusReqVO;
+import com.wsz.xiaolanshu.user.biz.domain.vo.AdminUserPageReqVO;
+import com.wsz.xiaolanshu.user.biz.domain.vo.AdminUserPageRspVO;
 import com.wsz.xiaolanshu.user.biz.mapper.UserDOMapper;
+import com.wsz.xiaolanshu.user.biz.service.AdminUserService;
 import com.wsz.xiaolanshu.user.biz.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -29,7 +33,7 @@ import java.util.Map;
 public class AdminUserController {
 
     @Resource
-    private UserService userService;
+    private AdminUserService adminUserService;
 
     /**
      * 封禁/解封 用户
@@ -37,18 +41,17 @@ public class AdminUserController {
     @PostMapping("/ban")
     @ApiOperationLog(description = "封禁/解封用户")
     @SaCheckPermission(value = "admin:user:ban", orRole = "super_admin")
-    public Response<?> banUser(@RequestBody Map<String, Object> params) {
-        return userService.banUser(params);
+    public Response<?> banUser(@Validated @RequestBody AdminUpdateUserStatusReqVO reqVO) {
+        return adminUserService.banUser(reqVO);
     }
 
     /**
-     * 分页查询所有用户 (后台大盘)
+     * 分页查询所有用户
      */
     @PostMapping("/page")
     @ApiOperationLog(description = "管理员分页查询用户列表")
     @SaCheckPermission(value = "admin:user:list", orRole = "super_admin")
-    public Response<?> getUserPageList() {
-        // TODO: 调用 UserService 实现后台的分页查询 (可按手机号、小蓝书号、状态搜索)
-        return Response.success(null);
+    public PageResponse<AdminUserPageRspVO> getUserPageList(@Validated @RequestBody AdminUserPageReqVO reqVO) {
+        return adminUserService.getUserPageList(reqVO);
     }
 }

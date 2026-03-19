@@ -53,4 +53,20 @@ public interface NoteDOMapper {
                                            @Param("pageSize") long pageSize);
 
     int selectTotalCountByCreatorId(Long creatorId);
+
+    /**
+     * 后台：根据条件查询笔记总数
+     */
+    long selectAdminTotalCount(@Param("title") String title,
+                               @Param("creatorId") Long creatorId,
+                               @Param("status") Integer status);
+
+    /**
+     * 后台：根据条件分页查询笔记列表
+     */
+    List<NoteDO> selectAdminPageList(@Param("title") String title,
+                                     @Param("creatorId") Long creatorId,
+                                     @Param("status") Integer status,
+                                     @Param("offset") long offset,
+                                     @Param("pageSize") long pageSize);
 }

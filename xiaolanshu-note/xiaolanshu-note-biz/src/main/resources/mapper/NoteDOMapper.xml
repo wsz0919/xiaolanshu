@@ -280,5 +280,39 @@
     limit 20
   </select>
 
+  <select id="selectAdminTotalCount" resultType="long">
+    SELECT count(id) FROM t_note
+    <where>
+      <if test="title != null and title != ''">
+        AND title LIKE CONCAT('%', #{title}, '%')
+      </if>
+      <if test="creatorId != null">
+        AND creator_id = #{creatorId}
+      </if>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+        AND status != 2
+    </where>
+  </select>
+
+  <select id="selectAdminPageList" resultMap="BaseResultMap">
+    SELECT id, title, creator_id, topic_id, topic_name, is_top, type, img_uris, video_uri, visible, create_time, update_time, status, content_uuid, channel_id, topic_ids
+    FROM t_note
+    <where>
+      <if test="title != null and title != ''">
+        AND title LIKE CONCAT('%', #{title}, '%')
+      </if>
+      <if test="creatorId != null">
+        AND creator_id = #{creatorId}
+      </if>
+      <if test="status != null">
+        AND status = #{status}
+      </if>
+      AND status != 2
+    </where>
+    ORDER BY create_time DESC
+    LIMIT #{offset}, #{pageSize}
+  </select>
 
 </mapper>
