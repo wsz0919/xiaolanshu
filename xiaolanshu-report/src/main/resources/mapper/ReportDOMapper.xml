@@ -71,4 +71,12 @@
             <if test="status != null"> AND status = #{status} </if>
         </where>
     </select>
+
+    <select id="selectByReporterAndTarget" resultType="java.lang.Long">
+        select count(1)
+        from t_report
+        where reporter_id = #{reporterId}
+        and target_type = #{targetType}
+        and target_id = #{targetId}
+    </select>
 </mapper>

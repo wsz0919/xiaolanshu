@@ -7,6 +7,7 @@ import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserRoleAndPermissionRspDTO;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -78,4 +79,13 @@ public interface UserFeignApi {
      */
     @PostMapping(value = PREFIX + "/roles")
     Response<List<String>> getRoleKeys(@RequestParam("userId") Long userId);
+
+    /**
+     * 封禁用户权限
+     *
+     * @param reqVO
+     * @return
+     */
+    @PostMapping(value = "/admin/user/ban")
+    Response<?> banUser(@RequestBody AdminUpdateUserStatusReqVO reqVO);
 }

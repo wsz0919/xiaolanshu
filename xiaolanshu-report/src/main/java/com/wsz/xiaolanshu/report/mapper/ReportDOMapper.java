@@ -40,4 +40,12 @@ public interface ReportDOMapper {
      * 查询举报总数
      */
     long selectCount(@Param("status") Integer status);
+
+    /**
+     * 查询当前用户是否已经提交举报
+     * @return
+     */
+    long selectByReporterAndTarget(@Param("reporterId") long reporterId,
+                                   @Param("targetType") Integer targetType,
+                                   @Param("targetId") Long targetId);
 }

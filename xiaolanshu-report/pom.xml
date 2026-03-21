@@ -94,6 +94,20 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-user-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-note-api</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.wsz</groupId>
+            <artifactId>xiaolanshu-comment-api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

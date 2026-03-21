@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.comment.api;
 
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.comment.constant.ApiConstants;
+import com.wsz.xiaolanshu.comment.dto.DeleteCommentReqVO;
 import com.wsz.xiaolanshu.comment.dto.FindCommentByIdRspDTO;
 import com.wsz.xiaolanshu.comment.dto.LikeCommentReqDTO;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -23,4 +24,7 @@ public interface CommentFeignApi {
 
     @PostMapping(PREFIX + "/getNoteIdByCommentId")
     Response<FindCommentByIdRspDTO> getNoteIdByCommentId(@RequestBody LikeCommentReqDTO vo);
+
+    @PostMapping(value = PREFIX + "/delete")
+    Response<?> deleteComment(@RequestBody DeleteCommentReqVO deleteCommentReqVO);
 }

@@ -2,6 +2,7 @@ package com.wsz.xiaolanshu.note.api;
 
 import com.wsz.framework.common.response.Response;
 import com.wsz.xiaolanshu.note.constant.ApiConstants;
+import com.wsz.xiaolanshu.note.dto.req.AdminUpdateNoteStatusReqVO;
 import com.wsz.xiaolanshu.note.dto.req.FindNoteDetailReqDTO;
 import com.wsz.xiaolanshu.note.dto.resp.FindNoteDetailRspDTO;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -26,4 +27,7 @@ public interface NoteFeignApi {
      */
     @PostMapping(value = PREFIX + "/detail")
     Response<FindNoteDetailRspDTO> findNoteDetail(@Validated @RequestBody FindNoteDetailReqDTO findNoteDetailReqDTO);
+
+    @PostMapping(value = "/admin/note/offline")
+    Response<?> updateNoteStatus(@RequestBody AdminUpdateNoteStatusReqVO updateNoteStatusReqVO);
 }
