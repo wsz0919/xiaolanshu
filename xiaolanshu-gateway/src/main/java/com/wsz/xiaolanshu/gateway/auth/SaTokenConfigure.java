@@ -40,30 +40,33 @@ public class SaTokenConfigure {
                                     "/comment/comment/child/list")
                             .check(r -> {
                                 StpUtil.checkLogin();
-                                StpUtil.checkDisable(StpUtil.getLoginIdAsLong()); // 校验全局封禁
+                                // 获取当前登录用户ID
+
+                                // 【修改点】：只校验全局封禁（默认服务名是 <default>）
+                                // 只有当 isDisable 返回 true，且 isDisable(userId, "publish_comment") 时，不能混为一谈。
+                                // 使用 checkDisable(id, "<default>") 专门指代全局封禁
+                                StpUtil.checkDisable(StpUtil.getLoginIdAsLong(), "<default>");
                             });
 
-                    // ================== 细粒度分类封禁校验 ==================
-                    long userId = StpUtil.getLoginIdAsLong();
 
                     // 2. 校验：禁止发布/编辑笔记
                     // (请根据你实际的 Controller 路由地址调整)
                     SaRouter.match("/note/note/publish", "/note/note/update")
-                            .check(r -> StpUtil.checkDisable(userId, "publish_note"));
+                            .check(r -> StpUtil.checkDisable(StpUtil.getLoginIdAsLong(), "publish_note"));
 
                     // 3. 校验：禁止发布评论
                     SaRouter.match("/comment/comment/publish")
-                            .check(r -> StpUtil.checkDisable(userId, "publish_comment"));
+                            .check(r -> StpUtil.checkDisable(StpUtil.getLoginIdAsLong(), "publish_comment"));
 
                     // 4. 校验：禁止点赞/收藏
                     SaRouter.match("/note/note/like", "/note/note/unlike",
                                     "/note/note/collect", "/note/note/uncollect",
                                     "/comment/comment/like", "/comment/comment/unlike")
-                            .check(r -> StpUtil.checkDisable(userId, "like_collect"));
+                            .check(r -> StpUtil.checkDisable(StpUtil.getLoginIdAsLong(), "like_collect"));
 
                     // 5. 校验：禁止修改个人资料
                     SaRouter.match("/user/user/update")
-                            .check(r -> StpUtil.checkDisable(userId, "update_profile"));
+                            .check(r -> StpUtil.checkDisable(StpUtil.getLoginIdAsLong(), "update_profile"));
 
                     // 后台角色校验等...
                     SaRouter.match("/admin/**", r -> StpUtil.checkRoleOr("super_admin", "operation_admin"));

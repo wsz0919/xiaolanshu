@@ -128,10 +128,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         var userInfo = userRpcService.findById(userId);
-        if (Objects.nonNull(userInfo) && StatusEnum.DISABLED.getValue().equals(userInfo.getStatus())) {
-            // 抛出业务异常，阻止发放 Token
-            throw new BizException(ResponseCodeEnum.UNAUTHORIZED);
-            // 规范点可以使用 throw new BizException(ResponseCodeEnum.USER_BANNED);
+        if (Objects.nonNull(userInfo) && (userInfo.getStatus() & 1) == 1) {
+            throw new BizException(ResponseCodeEnum.UNAUTHORIZED); // 全局封禁，不予下发 token
         }
 
         // SaToken 登录用户，并返回 token 令牌
