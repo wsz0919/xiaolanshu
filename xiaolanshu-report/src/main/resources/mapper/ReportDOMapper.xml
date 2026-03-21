@@ -61,7 +61,7 @@
         <where>
             <if test="status != null"> AND status = #{status} </if>
         </where>
-        ORDER BY create_time DESC
+        ORDER BY create_time ASC
         LIMIT #{offset}, #{pageSize}
     </select>
 

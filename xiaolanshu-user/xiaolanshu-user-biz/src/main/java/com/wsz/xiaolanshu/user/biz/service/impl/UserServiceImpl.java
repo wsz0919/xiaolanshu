@@ -482,6 +482,7 @@ public class UserServiceImpl implements UserService {
                             .nickName(userDO.getNickname())
                             .avatar(userDO.getAvatar())
                             .introduction(userDO.getIntroduction())
+                            .status(userDO.getStatus())
                             .build())
                     .collect(Collectors.toList());
 

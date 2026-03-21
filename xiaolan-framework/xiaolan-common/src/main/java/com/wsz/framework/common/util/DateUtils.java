@@ -52,7 +52,7 @@ public class DateUtils {
         LocalDateTime now = LocalDateTime.now();
 
         // 计算与当前时间的差距
-        long daysDiff = ChronoUnit.DAYS.between(dateTime, now);
+        long daysDiff = ChronoUnit.DAYS.between(dateTime.toLocalDate(), now.toLocalDate());
         long hoursDiff = ChronoUnit.HOURS.between(dateTime, now);
         long minutesDiff = ChronoUnit.MINUTES.between(dateTime, now);
         long secondsDiff = ChronoUnit.SECONDS.between(dateTime, now);

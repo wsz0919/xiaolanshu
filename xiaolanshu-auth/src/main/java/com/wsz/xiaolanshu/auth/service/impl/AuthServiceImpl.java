@@ -15,6 +15,7 @@ import com.wsz.xiaolanshu.auth.domain.vo.UserLoginReqVO;
 import com.wsz.xiaolanshu.auth.enums.LoginTypeEnum;
 import com.wsz.xiaolanshu.auth.enums.ResponseCodeEnum;
 import com.wsz.xiaolanshu.auth.service.AuthService;
+import com.wsz.xiaolanshu.user.dto.resp.FindUserByIdRspDTO;
 import com.wsz.xiaolanshu.user.dto.resp.FindUserByPhoneRspDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -127,7 +128,7 @@ public class AuthServiceImpl implements AuthService {
                 break;
         }
 
-        var userInfo = userRpcService.findById(userId);
+        FindUserByIdRspDTO userInfo = userRpcService.findById(userId);
         if (Objects.nonNull(userInfo) && (userInfo.getStatus() & 1) == 1) {
             throw new BizException(ResponseCodeEnum.UNAUTHORIZED); // 全局封禁，不予下发 token
         }
